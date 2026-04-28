@@ -1,0 +1,22 @@
+{
+  "name": "WeightLog",
+  "type": "object",
+  "properties": {
+    "userId": {
+      "type": "string",
+      "description": "Partition key in DynamoDB"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "weightKg": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "userId",
+    "date",
+    "weightKg"
+  ]
+}

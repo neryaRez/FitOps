@@ -1,0 +1,60 @@
+{
+  "name": "UserProfile",
+  "type": "object",
+  "properties": {
+    "userId": {
+      "type": "string",
+      "description": "Matches auth user ID \u2014 future DynamoDB partition key"
+    },
+    "name": {
+      "type": "string"
+    },
+    "age": {
+      "type": "number"
+    },
+    "sex": {
+      "type": "string",
+      "enum": [
+        "male",
+        "female",
+        "other"
+      ]
+    },
+    "heightCm": {
+      "type": "number"
+    },
+    "startingWeightKg": {
+      "type": "number"
+    },
+    "goalWeightKg": {
+      "type": "number"
+    },
+    "activityLevel": {
+      "type": "string",
+      "enum": [
+        "sedentary",
+        "light",
+        "moderate",
+        "active",
+        "very_active"
+      ]
+    },
+    "primaryGoal": {
+      "type": "string",
+      "enum": [
+        "lose_weight",
+        "maintain_weight",
+        "build_muscle",
+        "improve_fitness"
+      ]
+    },
+    "startDate": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "userId",
+    "name"
+  ]
+}

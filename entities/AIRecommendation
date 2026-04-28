@@ -1,0 +1,41 @@
+{
+  "name": "AIRecommendation",
+  "type": "object",
+  "properties": {
+    "userId": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "bmiAnalysis": {
+      "type": "string"
+    },
+    "fitnessPath": {
+      "type": "string"
+    },
+    "mealGuidance": {
+      "type": "string"
+    },
+    "workoutPlan": {
+      "type": "string"
+    },
+    "progressInsights": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "stub",
+        "pending",
+        "ready"
+      ],
+      "default": "stub"
+    }
+  },
+  "required": [
+    "userId",
+    "status"
+  ]
+}
