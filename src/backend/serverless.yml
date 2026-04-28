@@ -1,0 +1,115 @@
+# backend/serverless.yml
+# Serverless Framework v3 configuration for FitOps backend.
+# Deploy: cd backend && npm install && npx serverless deploy --stage prod
+#
+# Prerequisites:
+#   npm install -g serverless
+#   aws configure  (or use IAM role)
+#   npm install @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb @aws-sdk/client-s3 uuid
+
+service: fitops-api
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  environment:
+    PROFILES_TABLE:  fitops-user-profiles
+    WEIGHT_TABLE:    fitops-weight-logs
+    MEASURE_TABLE:   fitops-measurement-logs
+    PHOTOS_TABLE:    fitops-progress-photos
+    AI_TABLE:        fitops-ai-recommendations
+    PHOTOS_BUCKET:   fitops-progress-photos
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:DeleteItem, dynamodb:Query, dynamodb:Scan]
+          Resource: arn:aws:dynamodb:${self:provider.region}:*:table/fitops-*
+        - Effect: Allow
+          Action: [s3:PutObject, s3:GetObject, s3:DeleteObject]
+          Resource: arn:aws:s3:::fitops-progress-photos/*
+
+functions:
+
+  # ── Users ──────────────────────────────────────────────────────────────────
+  getProfile:
+    handler: functions/users/handler.getProfile
+    events:
+      - httpApi:
+          path: /users/{userId}/profile
+          method: GET
+          authorizer:
+            type: jwt   # Phase 2: wire to Cognito User Pool
+
+  upsertProfile:
+    handler: functions/users/handler.upsertProfile
+    events:
+      - httpApi:
+          path: /users/{userId}/profile
+          method: PUT
+
+  # ── Weight Logs ────────────────────────────────────────────────────────────
+  getWeightLogs:
+    handler: functions/progress/handler.getWeightLogs
+    events:
+      - httpApi: { path: /users/{userId}/weight, method: GET }
+
+  addWeightLog:
+    handler: functions/progress/handler.addWeightLog
+    events:
+      - httpApi: { path: /users/{userId}/weight, method: POST }
+
+  deleteWeightLog:
+    handler: functions/progress/handler.deleteWeightLog
+    events:
+      - httpApi: { path: /users/{userId}/weight/{logId}, method: DELETE }
+
+  # ── Measurements ───────────────────────────────────────────────────────────
+  getMeasurementLogs:
+    handler: functions/progress/handler.getMeasurementLogs
+    events:
+      - httpApi: { path: /users/{userId}/measurements, method: GET }
+
+  addMeasurementLog:
+    handler: functions/progress/handler.addMeasurementLog
+    events:
+      - httpApi: { path: /users/{userId}/measurements, method: POST }
+
+  deleteMeasurementLog:
+    handler: functions/progress/handler.deleteMeasurementLog
+    events:
+      - httpApi: { path: /users/{userId}/measurements/{logId}, method: DELETE }
+
+  # ── Progress Photos ────────────────────────────────────────────────────────
+  getProgressPhotos:
+    handler: functions/progress/handler.getProgressPhotos
+    events:
+      - httpApi: { path: /users/{userId}/photos, method: GET }
+
+  uploadProgressPhoto:
+    handler: functions/progress/handler.uploadProgressPhoto
+    events:
+      - httpApi: { path: /users/{userId}/photos, method: POST }
+
+  deleteProgressPhoto:
+    handler: functions/progress/handler.deleteProgressPhoto
+    events:
+      - httpApi: { path: /users/{userId}/photos/{photoId}, method: DELETE }
+
+  # ── AI Insights ────────────────────────────────────────────────────────────
+  getRecommendation:
+    handler: functions/ai/handler.getRecommendation
+    events:
+      - httpApi: { path: /users/{userId}/insights, method: GET }
+
+  requestAnalysis:
+    handler: functions/ai/handler.requestAnalysis
+    events:
+      - httpApi: { path: /users/{userId}/insights/generate, method: POST }
+
+resources:
+  - ${file(./models/dynamodb-tables.yml)}
