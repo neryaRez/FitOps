@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import { ArrowRight, CheckCircle, TrendingUp, Camera, Brain, BarChart2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
@@ -49,37 +48,50 @@ export default function Landing() {
   const handleSignUp = () => base44.auth.redirectToLogin('/dashboard');
 
   return (
-    <div className="min-h-screen font-inter text-white relative" style={{ backgroundColor: '#0F0C29' }}>
+    <div
+      className="min-h-screen font-inter text-white relative overflow-x-hidden"
+      style={{ backgroundColor: '#0F0C29' }}
+    >
       {/* Fixed background image */}
       <div
         className="fixed inset-0 z-0"
         style={{
-          backgroundImage: `url('https://media.base44.com/images/public/69ea569deb9059b940e51f3e/3053e376d_generated_image.png')`,
+          backgroundImage:
+            "url('https://media.base44.com/images/public/69ea569deb9059b940e51f3e/3053e376d_generated_image.png')",
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
       />
+
       {/* Dark overlay */}
-      <div className="fixed inset-0 z-0" style={{ background: 'rgba(15,12,41,0.42)' }} />
+      <div
+        className="fixed inset-0 z-0"
+        style={{ background: 'rgba(15,12,41,0.42)' }}
+      />
+
       {/* Content */}
       <div className="relative z-10">
-
         {/* ── Nav ── */}
-        <header className="sticky top-0 z-50 border-b border-white/10 backdrop-blur-md" style={{ background: 'rgba(15,12,41,0.7)' }}>
-          <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
+        <header
+          className="sticky top-0 z-50 border-b border-white/10 backdrop-blur-md"
+          style={{ background: 'rgba(15,12,41,0.7)' }}
+        >
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
             <span className="font-bold text-lg tracking-tight text-white select-none">
               Fit<span className="text-cyan-400">Ops</span>
             </span>
-            <div className="flex items-center gap-3">
+
+            <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={handleLogin}
-                className="text-sm font-medium text-white/70 hover:text-white transition-colors px-3 py-2"
+                className="text-sm font-medium text-white/70 hover:text-white transition-colors px-2 sm:px-3 py-2"
               >
                 Sign in
               </button>
+
               <button
                 onClick={handleSignUp}
-                className="text-sm font-semibold px-5 py-2 rounded-lg border border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-[#0F0C29] transition-all"
+                className="text-sm font-semibold px-4 sm:px-5 py-2 rounded-lg border border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-[#0F0C29] transition-all"
               >
                 Get started
               </button>
@@ -88,29 +100,38 @@ export default function Landing() {
         </header>
 
         {/* ── Hero ── */}
-        <section className="max-w-5xl mx-auto px-6 pt-14 pb-10">
-          <div className="flex flex-col lg:flex-row gap-8 items-start">
-
+        <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-8 sm:pt-10 lg:pt-12 pb-8">
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_300px] lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px] gap-5 lg:gap-8 items-center">
             {/* Left: text card */}
             <div
-              className="flex-1 rounded-2xl p-8 border border-white/15"
-              style={{ background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)' }}
+              className="w-full max-w-[560px] md:max-w-none mx-auto md:mx-0 rounded-2xl p-5 sm:p-6 lg:p-8 border border-white/15"
+              style={{
+                background: 'rgba(255,255,255,0.05)',
+                backdropFilter: 'blur(12px)',
+              }}
             >
-              <h1 className="text-4xl sm:text-5xl font-bold leading-tight">
-                Your body.<br />
-                Your data.<br />
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight">
+                Your body.
+                <br />
+                Your data.
+                <br />
                 <span className="text-orange-400">Your progress.</span>
               </h1>
-              <p className="mt-5 text-sm text-white/70 leading-relaxed max-w-sm">
-                Track weight, measurements, and photos in one clean dashboard. Built for real, long-term progress — with AI personalisation coming in Phase 2.
+
+              <p className="mt-4 sm:mt-5 text-sm text-white/70 leading-relaxed max-w-sm">
+                Track weight, measurements, and photos in one clean dashboard.
+                Built for real, long-term progress — with AI personalisation
+                coming in Phase 2.
               </p>
+
               <button
                 onClick={handleSignUp}
-                className="mt-8 flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm text-white transition-all"
+                className="mt-6 sm:mt-8 flex items-center gap-2 px-5 sm:px-6 py-3 rounded-xl font-semibold text-sm text-white transition-all"
                 style={{ background: 'linear-gradient(135deg, #00BFFF, #4F6EF7)' }}
               >
                 Start tracking free <ArrowRight className="w-4 h-4" />
               </button>
+
               <button
                 onClick={handleLogin}
                 className="mt-3 text-xs text-white/50 hover:text-white transition-colors"
@@ -121,8 +142,11 @@ export default function Landing() {
 
             {/* Right: hero image */}
             <div
-              className="flex-1 rounded-2xl overflow-hidden border border-white/15 w-full max-w-sm lg:max-w-none"
-              style={{ background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(8px)' }}
+              className="w-full max-w-[300px] sm:max-w-[340px] md:max-w-[300px] lg:max-w-[380px] xl:max-w-[420px] mx-auto rounded-2xl overflow-hidden border border-white/15"
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                backdropFilter: 'blur(8px)',
+              }}
             >
               <img
                 src="https://media.base44.com/images/public/69ea569deb9059b940e51f3e/cafb45b8e_generated_image.png"
@@ -134,11 +158,14 @@ export default function Landing() {
 
           {/* Trust badges */}
           <div
-            className="mt-6 rounded-2xl p-5 border border-white/10"
-            style={{ background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(8px)' }}
+            className="mt-5 sm:mt-6 max-w-[860px] mx-auto rounded-2xl p-4 sm:p-5 border border-white/10"
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              backdropFilter: 'blur(8px)',
+            }}
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {proofs.map(p => (
+              {proofs.map((p) => (
                 <div key={p} className="flex items-center gap-2.5 text-sm text-white/80">
                   <CheckCircle className="w-4 h-4 text-orange-400 flex-shrink-0" />
                   {p}
@@ -149,13 +176,15 @@ export default function Landing() {
         </section>
 
         {/* ── Features ── */}
-        <section className="max-w-5xl mx-auto px-6 py-16" style={{ background: 'transparent' }}>
+        <section className="max-w-5xl mx-auto px-4 sm:px-6 py-16">
           <div className="text-center mb-12">
             <h2 className="text-2xl sm:text-3xl font-bold text-white">
               Everything you need to track your body
             </h2>
+
             <p className="mt-3 text-sm text-white/60 max-w-md mx-auto">
-              A focused, distraction-free toolkit built for people serious about body recomposition.
+              A focused, distraction-free toolkit built for people serious about
+              body recomposition.
             </p>
           </div>
 
@@ -164,12 +193,17 @@ export default function Landing() {
               <div
                 key={title}
                 className={`rounded-2xl p-6 border ${borderColor} shadow-xl ${glowColor} transition-all hover:scale-[1.02]`}
-                style={{ background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)' }}
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  backdropFilter: 'blur(12px)',
+                }}
               >
                 <div className="mb-4">
                   <Icon className={`w-8 h-8 ${iconColor}`} />
                 </div>
+
                 <h3 className="font-bold text-white text-base mb-2">{title}</h3>
+
                 <p className="text-sm text-white/60 leading-relaxed">{desc}</p>
               </div>
             ))}
@@ -177,15 +211,21 @@ export default function Landing() {
         </section>
 
         {/* ── Footer ── */}
-        <footer className="border-t border-white/10 py-8" style={{ background: 'rgba(15,12,41,0.6)' }}>
-          <div className="max-w-5xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/40">
+        <footer
+          className="border-t border-white/10 py-8"
+          style={{ background: 'rgba(15,12,41,0.6)' }}
+        >
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/40">
             <span className="font-bold text-sm text-white">
               Fit<span className="text-cyan-400">Ops</span>
             </span>
-            <span>© {new Date().getFullYear()} FitOps. Built for AWS migration-ready architecture.</span>
+
+            <span>
+              © {new Date().getFullYear()} FitOps. Built for AWS
+              migration-ready architecture.
+            </span>
           </div>
         </footer>
-
       </div>
     </div>
   );
