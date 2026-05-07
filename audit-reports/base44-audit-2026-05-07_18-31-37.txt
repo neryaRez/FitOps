@@ -1,0 +1,263 @@
+FitOps Base44 Dependency Audit
+Generated at: Thu 07 May 2026 06:31:37 PM IDT
+Project root: /home/nerya/Desktop/FitOps
+
+Goal:
+This report tracks all Base44-related references so we can
+gradually replace Base44 with our own AWS-native architecture.
+
+Target future architecture:
+Frontend: S3 + CloudFront
+Backend: API Gateway + Lambda
+Database: DynamoDB
+Auth: Cognito
+AI: OpenAI / Agent workflow through backend only
+
+============================================================
+1. Base44 References Inside src/
+============================================================
+
+------------------------------------------------------------
+All lowercase 'base44' references in src/
+------------------------------------------------------------
+src/README.md:20:│   ├── api/                      ← base44Client (Phase 2: swap to axios → API Gateway)
+src/README.md:81:Replace the `base44.entities.*` calls with `fetch(import.meta.env.VITE_API_BASE_URL + '/users/...')`.
+src/frontend/API_CONTRACT.md:57:- [ ] In each `services/*.js` file, replace `base44.entities.*` calls with `fetch(API_BASE + '/users/...')`
+src/lib/useCurrentUser.js:2:import { base44 } from '@/api/base44Client';
+src/lib/useCurrentUser.js:9:    base44.auth.me()
+src/lib/PageNotFound.jsx:2:import { base44 } from '@/api/base44Client';
+src/lib/PageNotFound.jsx:14:                const user = await base44.auth.me();
+src/lib/app-params.js:13:	const storageKey = `base44_${toSnakeCase(paramName)}`;
+src/lib/app-params.js:39:		storage.removeItem('base44_access_token');
+src/lib/AuthContext.jsx:2:import { base44 } from '@/api/base44Client';
+src/lib/AuthContext.jsx:4:import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
+src/lib/AuthContext.jsx:96:      const currentUser = await base44.auth.me();
+src/lib/AuthContext.jsx:123:      base44.auth.logout(window.location.href);
+src/lib/AuthContext.jsx:126:      base44.auth.logout();
+src/lib/AuthContext.jsx:132:    base44.auth.redirectToLogin(window.location.href);
+src/ARCHITECTURE.md:112:   return base44.entities.UserProfile.filter({ userId });
+src/api/userApi.js:13:import { base44 } from '@/api/base44Client';
+src/api/userApi.js:16:  const results = await base44.entities.UserProfile.filter({ userId });
+src/api/userApi.js:21:  return base44.entities.UserProfile.create(profileData);
+src/api/userApi.js:25:  return base44.entities.UserProfile.update(profileId, updates);
+src/api/progressApi.js:20:import { base44 } from '@/api/base44Client';
+src/api/progressApi.js:25:  return base44.entities.WeightLog.filter({ userId }, 'date', 100);
+src/api/progressApi.js:29:  return base44.entities.WeightLog.create({ userId, date, weightKg });
+src/api/progressApi.js:33:  return base44.entities.WeightLog.delete(logId);
+src/api/progressApi.js:39:  return base44.entities.MeasurementLog.filter({ userId }, 'date', 100);
+src/api/progressApi.js:43:  return base44.entities.MeasurementLog.create({ userId, ...data });
+src/api/progressApi.js:47:  return base44.entities.MeasurementLog.delete(logId);
+src/api/progressApi.js:53:  return base44.entities.ProgressPhoto.filter({ userId }, '-date', 100);
+src/api/progressApi.js:57:  const { file_url } = await base44.integrations.Core.UploadFile({ file });
+src/api/progressApi.js:58:  return base44.entities.ProgressPhoto.create({ userId, date, angle, photoUrl: file_url });
+src/api/progressApi.js:62:  return base44.entities.ProgressPhoto.delete(photoId);
+src/api/base44Client.js:1:import { createClient } from '@base44/sdk';
+src/api/base44Client.js:7:export const base44 = createClient({
+src/api/aiApi.js:14:import { base44 } from '@/api/base44Client';
+src/api/aiApi.js:56:  const result = await base44.integrations.Core.InvokeLLM({
+src/api/aiApi.js:94:  const existing = await base44.entities.AIRecommendation.filter({ userId });
+src/api/aiApi.js:95:  if (existing?.length > 0) return base44.entities.AIRecommendation.update(existing[0].id, payload);
+src/api/aiApi.js:96:  return base44.entities.AIRecommendation.create(payload);
+src/api/aiApi.js:114:  const results = await base44.entities.AIRecommendation.filter({ userId });
+src/pages/Insights.jsx:7:import { base44 } from '@/api/base44Client';
+src/pages/Insights.jsx:32:      base44.agents.listConversations({ agent_name: 'fitops_coach' }),
+src/pages/Landing.jsx:2:import { base44 } from '@/api/base44Client';
+src/pages/Landing.jsx:47:  const handleLogin = () => base44.auth.redirectToLogin('/dashboard');
+src/pages/Landing.jsx:48:  const handleSignUp = () => base44.auth.redirectToLogin('/dashboard');
+src/pages/Landing.jsx:60:            "url('https://media.base44.com/images/public/69ea569deb9059b940e51f3e/3053e376d_generated_image.png')",
+src/pages/Landing.jsx:152:                src="https://media.base44.com/images/public/69ea569deb9059b940e51f3e/cafb45b8e_generated_image.png"
+src/components/layout/AppLayout.jsx:3:import { base44 } from '@/api/base44Client';
+src/components/layout/AppLayout.jsx:13:  const handleLogout = () => base44.auth.logout('/');
+src/components/layout/AppLayout.jsx:21:          backgroundImage: `url('https://media.base44.com/images/public/69ea569deb9059b940e51f3e/3053e376d_generated_image.png')`,
+src/components/insights/ChatPanel.jsx:4:import { base44 } from '@/api/base44Client';
+src/components/insights/ChatPanel.jsx:29:    unsubRef.current = base44.agents.subscribeToConversation(conversation.id, (data) => {
+src/components/insights/ChatPanel.jsx:44:    await base44.agents.addMessage(conversation, { role: 'user', content: text });
+src/components/insights/CoachChat.jsx:3:import { base44 } from '@/api/base44Client';
+src/components/insights/CoachChat.jsx:18:    const convos = await base44.agents.listConversations({ agent_name: 'fitops_coach' });
+src/components/insights/CoachChat.jsx:23:      const full = await base44.agents.getConversation(mine[0].id);
+src/components/insights/CoachChat.jsx:31:    const conv = await base44.agents.createConversation({
+src/components/insights/CoachChat.jsx:40:    const full = await base44.agents.getConversation(conv.id);
+src/components/insights/CoachChat.jsx:50:        const full = await base44.agents.getConversation(remaining[0].id);
+src/components/insights/CoachChat.jsx:56:    // Note: base44 doesn't expose a deleteConversation — we just hide it from UI
+src/components/ProtectedRoute.jsx:3:import { base44 } from '@/api/base44Client';
+
+
+============================================================
+2. @base44 Package Imports
+============================================================
+
+------------------------------------------------------------
+All '@base44' references in project files
+------------------------------------------------------------
+./package-lock.json:11:        "@base44/sdk": "^0.8.26",
+./package-lock.json:12:        "@base44/vite-plugin": "^1.0.10",
+./package-lock.json:392:    "node_modules/@base44/sdk": {
+./package-lock.json:394:      "resolved": "https://registry.npmjs.org/@base44/sdk/-/sdk-0.8.27.tgz",
+./package-lock.json:403:    "node_modules/@base44/vite-plugin": {
+./package-lock.json:405:      "resolved": "https://registry.npmjs.org/@base44/vite-plugin/-/vite-plugin-1.0.13.tgz",
+./vite.config.js:1:import base44 from "@base44/vite-plugin"
+./vite.config.js:11:      // can be removed if the code has been updated to use the new SDK imports from @base44/sdk
+./src/lib/AuthContext.jsx:4:import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
+./src/api/base44Client.js:1:import { createClient } from '@base44/sdk';
+./package.json:15:    "@base44/sdk": "^0.8.26",
+./package.json:16:    "@base44/vite-plugin": "^1.0.10",
+
+
+============================================================
+3. Base44 Entity Usage
+============================================================
+
+------------------------------------------------------------
+Base44 entities usage
+------------------------------------------------------------
+src/README.md:81:Replace the `base44.entities.*` calls with `fetch(import.meta.env.VITE_API_BASE_URL + '/users/...')`.
+src/frontend/API_CONTRACT.md:57:- [ ] In each `services/*.js` file, replace `base44.entities.*` calls with `fetch(API_BASE + '/users/...')`
+src/ARCHITECTURE.md:112:   return base44.entities.UserProfile.filter({ userId });
+src/api/userApi.js:16:  const results = await base44.entities.UserProfile.filter({ userId });
+src/api/userApi.js:21:  return base44.entities.UserProfile.create(profileData);
+src/api/userApi.js:25:  return base44.entities.UserProfile.update(profileId, updates);
+src/api/progressApi.js:25:  return base44.entities.WeightLog.filter({ userId }, 'date', 100);
+src/api/progressApi.js:29:  return base44.entities.WeightLog.create({ userId, date, weightKg });
+src/api/progressApi.js:33:  return base44.entities.WeightLog.delete(logId);
+src/api/progressApi.js:39:  return base44.entities.MeasurementLog.filter({ userId }, 'date', 100);
+src/api/progressApi.js:43:  return base44.entities.MeasurementLog.create({ userId, ...data });
+src/api/progressApi.js:47:  return base44.entities.MeasurementLog.delete(logId);
+src/api/progressApi.js:53:  return base44.entities.ProgressPhoto.filter({ userId }, '-date', 100);
+src/api/progressApi.js:58:  return base44.entities.ProgressPhoto.create({ userId, date, angle, photoUrl: file_url });
+src/api/progressApi.js:62:  return base44.entities.ProgressPhoto.delete(photoId);
+src/api/aiApi.js:94:  const existing = await base44.entities.AIRecommendation.filter({ userId });
+src/api/aiApi.js:95:  if (existing?.length > 0) return base44.entities.AIRecommendation.update(existing[0].id, payload);
+src/api/aiApi.js:96:  return base44.entities.AIRecommendation.create(payload);
+src/api/aiApi.js:114:  const results = await base44.entities.AIRecommendation.filter({ userId });
+
+
+============================================================
+4. Base44 Auth Usage
+============================================================
+
+------------------------------------------------------------
+Base44 auth usage
+------------------------------------------------------------
+src/lib/useCurrentUser.js:9:    base44.auth.me()
+src/lib/PageNotFound.jsx:14:                const user = await base44.auth.me();
+src/lib/AuthContext.jsx:96:      const currentUser = await base44.auth.me();
+src/lib/AuthContext.jsx:123:      base44.auth.logout(window.location.href);
+src/lib/AuthContext.jsx:126:      base44.auth.logout();
+src/lib/AuthContext.jsx:132:    base44.auth.redirectToLogin(window.location.href);
+src/pages/Landing.jsx:47:  const handleLogin = () => base44.auth.redirectToLogin('/dashboard');
+src/pages/Landing.jsx:48:  const handleSignUp = () => base44.auth.redirectToLogin('/dashboard');
+src/components/layout/AppLayout.jsx:13:  const handleLogout = () => base44.auth.logout('/');
+
+
+============================================================
+5. Base44 AI / Integrations Usage
+============================================================
+
+------------------------------------------------------------
+Base44 integrations usage
+------------------------------------------------------------
+src/api/progressApi.js:57:  const { file_url } = await base44.integrations.Core.UploadFile({ file });
+src/api/aiApi.js:56:  const result = await base44.integrations.Core.InvokeLLM({
+
+
+============================================================
+6. Base44 Agents Usage
+============================================================
+
+------------------------------------------------------------
+Base44 agents usage
+------------------------------------------------------------
+src/pages/Insights.jsx:32:      base44.agents.listConversations({ agent_name: 'fitops_coach' }),
+src/components/insights/ChatPanel.jsx:29:    unsubRef.current = base44.agents.subscribeToConversation(conversation.id, (data) => {
+src/components/insights/ChatPanel.jsx:44:    await base44.agents.addMessage(conversation, { role: 'user', content: text });
+src/components/insights/CoachChat.jsx:18:    const convos = await base44.agents.listConversations({ agent_name: 'fitops_coach' });
+src/components/insights/CoachChat.jsx:23:      const full = await base44.agents.getConversation(mine[0].id);
+src/components/insights/CoachChat.jsx:31:    const conv = await base44.agents.createConversation({
+src/components/insights/CoachChat.jsx:40:    const full = await base44.agents.getConversation(conv.id);
+src/components/insights/CoachChat.jsx:50:        const full = await base44.agents.getConversation(remaining[0].id);
+
+
+============================================================
+7. Base44 Assets / Media URLs
+============================================================
+
+------------------------------------------------------------
+Base44 media/image URLs
+------------------------------------------------------------
+src/pages/Landing.jsx:60:            "url('https://media.base44.com/images/public/69ea569deb9059b940e51f3e/3053e376d_generated_image.png')",
+src/pages/Landing.jsx:152:                src="https://media.base44.com/images/public/69ea569deb9059b940e51f3e/cafb45b8e_generated_image.png"
+src/components/layout/AppLayout.jsx:21:          backgroundImage: `url('https://media.base44.com/images/public/69ea569deb9059b940e51f3e/3053e376d_generated_image.png')`,
+
+
+============================================================
+8. Base44 App Parameters / Tokens
+============================================================
+
+------------------------------------------------------------
+Base44 localStorage/app params/token references
+------------------------------------------------------------
+src/lib/app-params.js:13:	const storageKey = `base44_${toSnakeCase(paramName)}`;
+src/lib/app-params.js:39:		storage.removeItem('base44_access_token');
+
+
+============================================================
+9. Important Project Files
+============================================================
+
+Files likely involved in migration:
+
+Frontend API layer:
+  - src/api/base44Client.js
+  - src/api/userApi.js
+  - src/api/progressApi.js
+  - src/api/aiApi.js
+
+Auth layer:
+  - src/lib/AuthContext.jsx
+  - src/lib/useCurrentUser.js
+  - src/components/ProtectedRoute.jsx
+  - src/components/layout/AppLayout.jsx
+  - src/pages/Landing.jsx
+
+AI / agent layer:
+  - src/pages/Insights.jsx
+  - src/components/insights/ChatPanel.jsx
+  - src/components/insights/CoachChat.jsx
+
+Config/build layer:
+  - vite.config.js
+  - package.json
+  - index.html
+
+============================================================
+10. Migration Notes
+============================================================
+
+Do not remove Base44 immediately.
+
+Recommended replacement order:
+  1. Keep frontend working.
+  2. Clean branding: title, favicon, README.
+  3. Add backend health check.
+  4. Replace userApi.js with API Gateway calls.
+  5. Replace progressApi.js with API Gateway calls.
+  6. Replace aiApi.js with OpenAI-backed Lambda flow.
+  7. Replace Base44 auth with Cognito.
+  8. Remove base44Client.js and @base44/sdk.
+  9. Remove Base44 Vite plugin if no longer needed.
+
+Security reminders:
+  - Never put OpenAI API keys in the frontend.
+  - Frontend must never access DynamoDB directly.
+  - Use API Gateway + Lambda as the backend boundary.
+  - Use Cognito JWT tokens for user identity.
+  - Keep S3 photo bucket private.
+  - Use least-privilege IAM.
+
+============================================================
+Audit Completed
+============================================================
+
+Report file:
+  audit-reports/base44-audit-2026-05-07_18-31-37.txt
+
