@@ -41,6 +41,187 @@ Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.
 Support: [https://app.base44.com/support](https://app.base44.com/support)
 --- END: README.md ---
 
+--- START: base44-audit.sh ---
+#!/usr/bin/env bash
+
+# ============================================================
+# FitOps Base44 Dependency Audit
+# ============================================================
+# Purpose:
+#   Find all Base44-related references in the project and create
+#   a clean tracking report.
+#
+# Usage:
+#   chmod +x base44-audit.sh
+#   ./base44-audit.sh
+#
+# Output:
+#   audit-reports/base44-audit-YYYY-MM-DD_HH-MM-SS.txt
+# ============================================================
+
+set -euo pipefail
+
+PROJECT_ROOT="$(pwd)"
+TIMESTAMP="$(date +"%Y-%m-%d_%H-%M-%S")"
+REPORT_DIR="audit-reports"
+REPORT_FILE="$REPORT_DIR/base44-audit-$TIMESTAMP.txt"
+
+mkdir -p "$REPORT_DIR"
+
+print_header() {
+  local title="$1"
+  {
+    echo
+    echo "============================================================"
+    echo "$title"
+    echo "============================================================"
+  } >> "$REPORT_FILE"
+}
+
+print_subheader() {
+  local title="$1"
+  {
+    echo
+    echo "------------------------------------------------------------"
+    echo "$title"
+    echo "------------------------------------------------------------"
+  } >> "$REPORT_FILE"
+}
+
+run_search() {
+  local title="$1"
+  local pattern="$2"
+  local path="$3"
+
+  print_subheader "$title"
+
+  if grep -RIn \
+    --exclude-dir=node_modules \
+    --exclude-dir=dist \
+    --exclude-dir=.git \
+    --exclude-dir=.vite \
+    --exclude-dir=audit-reports \
+    --exclude="*.map" \
+    --exclude="a.txt" \
+    --exclude="merged_all.txt" \
+    --exclude="base44-audit.sh" \
+    "$pattern" "$path" >> "$REPORT_FILE" 2>/dev/null; then
+    echo >> "$REPORT_FILE"
+  else
+    echo "No matches found." >> "$REPORT_FILE"
+  fi
+}
+
+{
+  echo "FitOps Base44 Dependency Audit"
+  echo "Generated at: $(date)"
+  echo "Project root: $PROJECT_ROOT"
+  echo
+  echo "Goal:"
+  echo "This report tracks all Base44-related references so we can"
+  echo "gradually replace Base44 with our own AWS-native architecture."
+  echo
+  echo "Target future architecture:"
+  echo "Frontend: S3 + CloudFront"
+  echo "Backend: API Gateway + Lambda"
+  echo "Database: DynamoDB"
+  echo "Auth: Cognito"
+  echo "AI: OpenAI / Agent workflow through backend only"
+} > "$REPORT_FILE"
+
+print_header "1. Base44 References Inside src/"
+run_search "All lowercase 'base44' references in src/" "base44" "src"
+
+print_header "2. @base44 Package Imports"
+run_search "All '@base44' references in project files" "@base44" "."
+
+print_header "3. Base44 Entity Usage"
+run_search "Base44 entities usage" "base44.entities" "src"
+
+print_header "4. Base44 Auth Usage"
+run_search "Base44 auth usage" "base44.auth" "src"
+
+print_header "5. Base44 AI / Integrations Usage"
+run_search "Base44 integrations usage" "base44.integrations" "src"
+
+print_header "6. Base44 Agents Usage"
+run_search "Base44 agents usage" "base44.agents" "src"
+
+print_header "7. Base44 Assets / Media URLs"
+run_search "Base44 media/image URLs" "media.base44.com" "src"
+
+print_header "8. Base44 App Parameters / Tokens"
+run_search "Base44 localStorage/app params/token references" "base44_" "src"
+
+print_header "9. Important Project Files"
+{
+  echo
+  echo "Files likely involved in migration:"
+  echo
+  echo "Frontend API layer:"
+  echo "  - src/api/base44Client.js"
+  echo "  - src/api/userApi.js"
+  echo "  - src/api/progressApi.js"
+  echo "  - src/api/aiApi.js"
+  echo
+  echo "Auth layer:"
+  echo "  - src/lib/AuthContext.jsx"
+  echo "  - src/lib/useCurrentUser.js"
+  echo "  - src/components/ProtectedRoute.jsx"
+  echo "  - src/components/layout/AppLayout.jsx"
+  echo "  - src/pages/Landing.jsx"
+  echo
+  echo "AI / agent layer:"
+  echo "  - src/pages/Insights.jsx"
+  echo "  - src/components/insights/ChatPanel.jsx"
+  echo "  - src/components/insights/CoachChat.jsx"
+  echo
+  echo "Config/build layer:"
+  echo "  - vite.config.js"
+  echo "  - package.json"
+  echo "  - index.html"
+} >> "$REPORT_FILE"
+
+print_header "10. Migration Notes"
+{
+  echo
+  echo "Do not remove Base44 immediately."
+  echo
+  echo "Recommended replacement order:"
+  echo "  1. Keep frontend working."
+  echo "  2. Clean branding: title, favicon, README."
+  echo "  3. Add backend health check."
+  echo "  4. Replace userApi.js with API Gateway calls."
+  echo "  5. Replace progressApi.js with API Gateway calls."
+  echo "  6. Replace aiApi.js with OpenAI-backed Lambda flow."
+  echo "  7. Replace Base44 auth with Cognito."
+  echo "  8. Remove base44Client.js and @base44/sdk."
+  echo "  9. Remove Base44 Vite plugin if no longer needed."
+  echo
+  echo "Security reminders:"
+  echo "  - Never put OpenAI API keys in the frontend."
+  echo "  - Frontend must never access DynamoDB directly."
+  echo "  - Use API Gateway + Lambda as the backend boundary."
+  echo "  - Use Cognito JWT tokens for user identity."
+  echo "  - Keep S3 photo bucket private."
+  echo "  - Use least-privilege IAM."
+} >> "$REPORT_FILE"
+
+print_header "Audit Completed"
+{
+  echo
+  echo "Report file:"
+  echo "  $REPORT_FILE"
+  echo
+} >> "$REPORT_FILE"
+
+echo
+echo "✅ Base44 audit completed successfully."
+echo "📄 Report created at:"
+echo "   $REPORT_FILE"
+echo
+--- END: base44-audit.sh ---
+
 --- START: components.json ---
 {
   "$schema": "https://ui.shadcn.com/schema.json",
@@ -804,10 +985,9 @@ That is how this becomes a serious portfolio-grade AWS migration project, not ju
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="https://base44.com/logo_v2.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="manifest" href="/manifest.json" />
-    <title>Base44 APP</title>
+    <title>FitOps</title>
   </head>
   <body>
     <div id="root"></div>
@@ -945,6 +1125,272 @@ export default defineConfig({
   ]
 });
 --- END: vite.config.js ---
+
+--- START: audit-reports/base44-audit-2026-05-07_18-31-37.txt ---
+FitOps Base44 Dependency Audit
+Generated at: Thu 07 May 2026 06:31:37 PM IDT
+Project root: /home/nerya/Desktop/FitOps
+
+Goal:
+This report tracks all Base44-related references so we can
+gradually replace Base44 with our own AWS-native architecture.
+
+Target future architecture:
+Frontend: S3 + CloudFront
+Backend: API Gateway + Lambda
+Database: DynamoDB
+Auth: Cognito
+AI: OpenAI / Agent workflow through backend only
+
+============================================================
+1. Base44 References Inside src/
+============================================================
+
+------------------------------------------------------------
+All lowercase 'base44' references in src/
+------------------------------------------------------------
+src/README.md:20:│   ├── api/                      ← base44Client (Phase 2: swap to axios → API Gateway)
+src/README.md:81:Replace the `base44.entities.*` calls with `fetch(import.meta.env.VITE_API_BASE_URL + '/users/...')`.
+src/frontend/API_CONTRACT.md:57:- [ ] In each `services/*.js` file, replace `base44.entities.*` calls with `fetch(API_BASE + '/users/...')`
+src/lib/useCurrentUser.js:2:import { base44 } from '@/api/base44Client';
+src/lib/useCurrentUser.js:9:    base44.auth.me()
+src/lib/PageNotFound.jsx:2:import { base44 } from '@/api/base44Client';
+src/lib/PageNotFound.jsx:14:                const user = await base44.auth.me();
+src/lib/app-params.js:13:	const storageKey = `base44_${toSnakeCase(paramName)}`;
+src/lib/app-params.js:39:		storage.removeItem('base44_access_token');
+src/lib/AuthContext.jsx:2:import { base44 } from '@/api/base44Client';
+src/lib/AuthContext.jsx:4:import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
+src/lib/AuthContext.jsx:96:      const currentUser = await base44.auth.me();
+src/lib/AuthContext.jsx:123:      base44.auth.logout(window.location.href);
+src/lib/AuthContext.jsx:126:      base44.auth.logout();
+src/lib/AuthContext.jsx:132:    base44.auth.redirectToLogin(window.location.href);
+src/ARCHITECTURE.md:112:   return base44.entities.UserProfile.filter({ userId });
+src/api/userApi.js:13:import { base44 } from '@/api/base44Client';
+src/api/userApi.js:16:  const results = await base44.entities.UserProfile.filter({ userId });
+src/api/userApi.js:21:  return base44.entities.UserProfile.create(profileData);
+src/api/userApi.js:25:  return base44.entities.UserProfile.update(profileId, updates);
+src/api/progressApi.js:20:import { base44 } from '@/api/base44Client';
+src/api/progressApi.js:25:  return base44.entities.WeightLog.filter({ userId }, 'date', 100);
+src/api/progressApi.js:29:  return base44.entities.WeightLog.create({ userId, date, weightKg });
+src/api/progressApi.js:33:  return base44.entities.WeightLog.delete(logId);
+src/api/progressApi.js:39:  return base44.entities.MeasurementLog.filter({ userId }, 'date', 100);
+src/api/progressApi.js:43:  return base44.entities.MeasurementLog.create({ userId, ...data });
+src/api/progressApi.js:47:  return base44.entities.MeasurementLog.delete(logId);
+src/api/progressApi.js:53:  return base44.entities.ProgressPhoto.filter({ userId }, '-date', 100);
+src/api/progressApi.js:57:  const { file_url } = await base44.integrations.Core.UploadFile({ file });
+src/api/progressApi.js:58:  return base44.entities.ProgressPhoto.create({ userId, date, angle, photoUrl: file_url });
+src/api/progressApi.js:62:  return base44.entities.ProgressPhoto.delete(photoId);
+src/api/base44Client.js:1:import { createClient } from '@base44/sdk';
+src/api/base44Client.js:7:export const base44 = createClient({
+src/api/aiApi.js:14:import { base44 } from '@/api/base44Client';
+src/api/aiApi.js:56:  const result = await base44.integrations.Core.InvokeLLM({
+src/api/aiApi.js:94:  const existing = await base44.entities.AIRecommendation.filter({ userId });
+src/api/aiApi.js:95:  if (existing?.length > 0) return base44.entities.AIRecommendation.update(existing[0].id, payload);
+src/api/aiApi.js:96:  return base44.entities.AIRecommendation.create(payload);
+src/api/aiApi.js:114:  const results = await base44.entities.AIRecommendation.filter({ userId });
+src/pages/Insights.jsx:7:import { base44 } from '@/api/base44Client';
+src/pages/Insights.jsx:32:      base44.agents.listConversations({ agent_name: 'fitops_coach' }),
+src/pages/Landing.jsx:2:import { base44 } from '@/api/base44Client';
+src/pages/Landing.jsx:47:  const handleLogin = () => base44.auth.redirectToLogin('/dashboard');
+src/pages/Landing.jsx:48:  const handleSignUp = () => base44.auth.redirectToLogin('/dashboard');
+src/pages/Landing.jsx:60:            "url('https://media.base44.com/images/public/69ea569deb9059b940e51f3e/3053e376d_generated_image.png')",
+src/pages/Landing.jsx:152:                src="https://media.base44.com/images/public/69ea569deb9059b940e51f3e/cafb45b8e_generated_image.png"
+src/components/layout/AppLayout.jsx:3:import { base44 } from '@/api/base44Client';
+src/components/layout/AppLayout.jsx:13:  const handleLogout = () => base44.auth.logout('/');
+src/components/layout/AppLayout.jsx:21:          backgroundImage: `url('https://media.base44.com/images/public/69ea569deb9059b940e51f3e/3053e376d_generated_image.png')`,
+src/components/insights/ChatPanel.jsx:4:import { base44 } from '@/api/base44Client';
+src/components/insights/ChatPanel.jsx:29:    unsubRef.current = base44.agents.subscribeToConversation(conversation.id, (data) => {
+src/components/insights/ChatPanel.jsx:44:    await base44.agents.addMessage(conversation, { role: 'user', content: text });
+src/components/insights/CoachChat.jsx:3:import { base44 } from '@/api/base44Client';
+src/components/insights/CoachChat.jsx:18:    const convos = await base44.agents.listConversations({ agent_name: 'fitops_coach' });
+src/components/insights/CoachChat.jsx:23:      const full = await base44.agents.getConversation(mine[0].id);
+src/components/insights/CoachChat.jsx:31:    const conv = await base44.agents.createConversation({
+src/components/insights/CoachChat.jsx:40:    const full = await base44.agents.getConversation(conv.id);
+src/components/insights/CoachChat.jsx:50:        const full = await base44.agents.getConversation(remaining[0].id);
+src/components/insights/CoachChat.jsx:56:    // Note: base44 doesn't expose a deleteConversation — we just hide it from UI
+src/components/ProtectedRoute.jsx:3:import { base44 } from '@/api/base44Client';
+
+
+============================================================
+2. @base44 Package Imports
+============================================================
+
+------------------------------------------------------------
+All '@base44' references in project files
+------------------------------------------------------------
+./package-lock.json:11:        "@base44/sdk": "^0.8.26",
+./package-lock.json:12:        "@base44/vite-plugin": "^1.0.10",
+./package-lock.json:392:    "node_modules/@base44/sdk": {
+./package-lock.json:394:      "resolved": "https://registry.npmjs.org/@base44/sdk/-/sdk-0.8.27.tgz",
+./package-lock.json:403:    "node_modules/@base44/vite-plugin": {
+./package-lock.json:405:      "resolved": "https://registry.npmjs.org/@base44/vite-plugin/-/vite-plugin-1.0.13.tgz",
+./vite.config.js:1:import base44 from "@base44/vite-plugin"
+./vite.config.js:11:      // can be removed if the code has been updated to use the new SDK imports from @base44/sdk
+./src/lib/AuthContext.jsx:4:import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
+./src/api/base44Client.js:1:import { createClient } from '@base44/sdk';
+./package.json:15:    "@base44/sdk": "^0.8.26",
+./package.json:16:    "@base44/vite-plugin": "^1.0.10",
+
+
+============================================================
+3. Base44 Entity Usage
+============================================================
+
+------------------------------------------------------------
+Base44 entities usage
+------------------------------------------------------------
+src/README.md:81:Replace the `base44.entities.*` calls with `fetch(import.meta.env.VITE_API_BASE_URL + '/users/...')`.
+src/frontend/API_CONTRACT.md:57:- [ ] In each `services/*.js` file, replace `base44.entities.*` calls with `fetch(API_BASE + '/users/...')`
+src/ARCHITECTURE.md:112:   return base44.entities.UserProfile.filter({ userId });
+src/api/userApi.js:16:  const results = await base44.entities.UserProfile.filter({ userId });
+src/api/userApi.js:21:  return base44.entities.UserProfile.create(profileData);
+src/api/userApi.js:25:  return base44.entities.UserProfile.update(profileId, updates);
+src/api/progressApi.js:25:  return base44.entities.WeightLog.filter({ userId }, 'date', 100);
+src/api/progressApi.js:29:  return base44.entities.WeightLog.create({ userId, date, weightKg });
+src/api/progressApi.js:33:  return base44.entities.WeightLog.delete(logId);
+src/api/progressApi.js:39:  return base44.entities.MeasurementLog.filter({ userId }, 'date', 100);
+src/api/progressApi.js:43:  return base44.entities.MeasurementLog.create({ userId, ...data });
+src/api/progressApi.js:47:  return base44.entities.MeasurementLog.delete(logId);
+src/api/progressApi.js:53:  return base44.entities.ProgressPhoto.filter({ userId }, '-date', 100);
+src/api/progressApi.js:58:  return base44.entities.ProgressPhoto.create({ userId, date, angle, photoUrl: file_url });
+src/api/progressApi.js:62:  return base44.entities.ProgressPhoto.delete(photoId);
+src/api/aiApi.js:94:  const existing = await base44.entities.AIRecommendation.filter({ userId });
+src/api/aiApi.js:95:  if (existing?.length > 0) return base44.entities.AIRecommendation.update(existing[0].id, payload);
+src/api/aiApi.js:96:  return base44.entities.AIRecommendation.create(payload);
+src/api/aiApi.js:114:  const results = await base44.entities.AIRecommendation.filter({ userId });
+
+
+============================================================
+4. Base44 Auth Usage
+============================================================
+
+------------------------------------------------------------
+Base44 auth usage
+------------------------------------------------------------
+src/lib/useCurrentUser.js:9:    base44.auth.me()
+src/lib/PageNotFound.jsx:14:                const user = await base44.auth.me();
+src/lib/AuthContext.jsx:96:      const currentUser = await base44.auth.me();
+src/lib/AuthContext.jsx:123:      base44.auth.logout(window.location.href);
+src/lib/AuthContext.jsx:126:      base44.auth.logout();
+src/lib/AuthContext.jsx:132:    base44.auth.redirectToLogin(window.location.href);
+src/pages/Landing.jsx:47:  const handleLogin = () => base44.auth.redirectToLogin('/dashboard');
+src/pages/Landing.jsx:48:  const handleSignUp = () => base44.auth.redirectToLogin('/dashboard');
+src/components/layout/AppLayout.jsx:13:  const handleLogout = () => base44.auth.logout('/');
+
+
+============================================================
+5. Base44 AI / Integrations Usage
+============================================================
+
+------------------------------------------------------------
+Base44 integrations usage
+------------------------------------------------------------
+src/api/progressApi.js:57:  const { file_url } = await base44.integrations.Core.UploadFile({ file });
+src/api/aiApi.js:56:  const result = await base44.integrations.Core.InvokeLLM({
+
+
+============================================================
+6. Base44 Agents Usage
+============================================================
+
+------------------------------------------------------------
+Base44 agents usage
+------------------------------------------------------------
+src/pages/Insights.jsx:32:      base44.agents.listConversations({ agent_name: 'fitops_coach' }),
+src/components/insights/ChatPanel.jsx:29:    unsubRef.current = base44.agents.subscribeToConversation(conversation.id, (data) => {
+src/components/insights/ChatPanel.jsx:44:    await base44.agents.addMessage(conversation, { role: 'user', content: text });
+src/components/insights/CoachChat.jsx:18:    const convos = await base44.agents.listConversations({ agent_name: 'fitops_coach' });
+src/components/insights/CoachChat.jsx:23:      const full = await base44.agents.getConversation(mine[0].id);
+src/components/insights/CoachChat.jsx:31:    const conv = await base44.agents.createConversation({
+src/components/insights/CoachChat.jsx:40:    const full = await base44.agents.getConversation(conv.id);
+src/components/insights/CoachChat.jsx:50:        const full = await base44.agents.getConversation(remaining[0].id);
+
+
+============================================================
+7. Base44 Assets / Media URLs
+============================================================
+
+------------------------------------------------------------
+Base44 media/image URLs
+------------------------------------------------------------
+src/pages/Landing.jsx:60:            "url('https://media.base44.com/images/public/69ea569deb9059b940e51f3e/3053e376d_generated_image.png')",
+src/pages/Landing.jsx:152:                src="https://media.base44.com/images/public/69ea569deb9059b940e51f3e/cafb45b8e_generated_image.png"
+src/components/layout/AppLayout.jsx:21:          backgroundImage: `url('https://media.base44.com/images/public/69ea569deb9059b940e51f3e/3053e376d_generated_image.png')`,
+
+
+============================================================
+8. Base44 App Parameters / Tokens
+============================================================
+
+------------------------------------------------------------
+Base44 localStorage/app params/token references
+------------------------------------------------------------
+src/lib/app-params.js:13:	const storageKey = `base44_${toSnakeCase(paramName)}`;
+src/lib/app-params.js:39:		storage.removeItem('base44_access_token');
+
+
+============================================================
+9. Important Project Files
+============================================================
+
+Files likely involved in migration:
+
+Frontend API layer:
+  - src/api/base44Client.js
+  - src/api/userApi.js
+  - src/api/progressApi.js
+  - src/api/aiApi.js
+
+Auth layer:
+  - src/lib/AuthContext.jsx
+  - src/lib/useCurrentUser.js
+  - src/components/ProtectedRoute.jsx
+  - src/components/layout/AppLayout.jsx
+  - src/pages/Landing.jsx
+
+AI / agent layer:
+  - src/pages/Insights.jsx
+  - src/components/insights/ChatPanel.jsx
+  - src/components/insights/CoachChat.jsx
+
+Config/build layer:
+  - vite.config.js
+  - package.json
+  - index.html
+
+============================================================
+10. Migration Notes
+============================================================
+
+Do not remove Base44 immediately.
+
+Recommended replacement order:
+  1. Keep frontend working.
+  2. Clean branding: title, favicon, README.
+  3. Add backend health check.
+  4. Replace userApi.js with API Gateway calls.
+  5. Replace progressApi.js with API Gateway calls.
+  6. Replace aiApi.js with OpenAI-backed Lambda flow.
+  7. Replace Base44 auth with Cognito.
+  8. Remove base44Client.js and @base44/sdk.
+  9. Remove Base44 Vite plugin if no longer needed.
+
+Security reminders:
+  - Never put OpenAI API keys in the frontend.
+  - Frontend must never access DynamoDB directly.
+  - Use API Gateway + Lambda as the backend boundary.
+  - Use Cognito JWT tokens for user identity.
+  - Keep S3 photo bucket private.
+  - Use least-privilege IAM.
+
+============================================================
+Audit Completed
+============================================================
+
+Report file:
+  audit-reports/base44-audit-2026-05-07_18-31-37.txt
+
+--- END: audit-reports/base44-audit-2026-05-07_18-31-37.txt ---
 
 --- START: entities/AIRecommendation ---
 {
@@ -1486,12 +1932,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 --- START: src/backend/serverless.yml ---
 # backend/serverless.yml
 # Serverless Framework v3 configuration for FitOps backend.
-# Deploy: cd backend && npm install && npx serverless deploy --stage prod
-#
-# Prerequisites:
-#   npm install -g serverless
-#   aws configure  (or use IAM role)
-#   npm install @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb @aws-sdk/client-s3 uuid
+# Deploy: cd src/backend && npm install && npx serverless deploy --stage prod
 
 service: fitops-api
 
@@ -1503,99 +1944,128 @@ provider:
   region: us-east-1
   stage: ${opt:stage, 'dev'}
   environment:
-    PROFILES_TABLE:  fitops-user-profiles
-    WEIGHT_TABLE:    fitops-weight-logs
-    MEASURE_TABLE:   fitops-measurement-logs
-    PHOTOS_TABLE:    fitops-progress-photos
-    AI_TABLE:        fitops-ai-recommendations
-    PHOTOS_BUCKET:   fitops-progress-photos
+    PROFILES_TABLE: fitops-user-profiles
+    WEIGHT_TABLE: fitops-weight-logs
+    MEASURE_TABLE: fitops-measurement-logs
+    PHOTOS_TABLE: fitops-progress-photos
+    AI_TABLE: fitops-ai-recommendations
+    PHOTOS_BUCKET: fitops-progress-photos
   iam:
     role:
       statements:
         - Effect: Allow
-          Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:DeleteItem, dynamodb:Query, dynamodb:Scan]
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:Query
+            - dynamodb:Scan
           Resource: arn:aws:dynamodb:${self:provider.region}:*:table/fitops-*
+
         - Effect: Allow
-          Action: [s3:PutObject, s3:GetObject, s3:DeleteObject]
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
           Resource: arn:aws:s3:::fitops-progress-photos/*
 
 functions:
-
   # ── Users ──────────────────────────────────────────────────────────────────
   getProfile:
     handler: functions/users/handler.getProfile
     events:
       - httpApi:
-          path: /users/{userId}/profile
+          path: "/users/{userId}/profile"
           method: GET
-          authorizer:
-            type: jwt   # Phase 2: wire to Cognito User Pool
 
   upsertProfile:
     handler: functions/users/handler.upsertProfile
     events:
       - httpApi:
-          path: /users/{userId}/profile
+          path: "/users/{userId}/profile"
           method: PUT
 
   # ── Weight Logs ────────────────────────────────────────────────────────────
   getWeightLogs:
     handler: functions/progress/handler.getWeightLogs
     events:
-      - httpApi: { path: /users/{userId}/weight, method: GET }
+      - httpApi:
+          path: "/users/{userId}/weight"
+          method: GET
 
   addWeightLog:
     handler: functions/progress/handler.addWeightLog
     events:
-      - httpApi: { path: /users/{userId}/weight, method: POST }
+      - httpApi:
+          path: "/users/{userId}/weight"
+          method: POST
 
   deleteWeightLog:
     handler: functions/progress/handler.deleteWeightLog
     events:
-      - httpApi: { path: /users/{userId}/weight/{logId}, method: DELETE }
+      - httpApi:
+          path: "/users/{userId}/weight/{logId}"
+          method: DELETE
 
   # ── Measurements ───────────────────────────────────────────────────────────
   getMeasurementLogs:
     handler: functions/progress/handler.getMeasurementLogs
     events:
-      - httpApi: { path: /users/{userId}/measurements, method: GET }
+      - httpApi:
+          path: "/users/{userId}/measurements"
+          method: GET
 
   addMeasurementLog:
     handler: functions/progress/handler.addMeasurementLog
     events:
-      - httpApi: { path: /users/{userId}/measurements, method: POST }
+      - httpApi:
+          path: "/users/{userId}/measurements"
+          method: POST
 
   deleteMeasurementLog:
     handler: functions/progress/handler.deleteMeasurementLog
     events:
-      - httpApi: { path: /users/{userId}/measurements/{logId}, method: DELETE }
+      - httpApi:
+          path: "/users/{userId}/measurements/{logId}"
+          method: DELETE
 
   # ── Progress Photos ────────────────────────────────────────────────────────
   getProgressPhotos:
     handler: functions/progress/handler.getProgressPhotos
     events:
-      - httpApi: { path: /users/{userId}/photos, method: GET }
+      - httpApi:
+          path: "/users/{userId}/photos"
+          method: GET
 
   uploadProgressPhoto:
     handler: functions/progress/handler.uploadProgressPhoto
     events:
-      - httpApi: { path: /users/{userId}/photos, method: POST }
+      - httpApi:
+          path: "/users/{userId}/photos"
+          method: POST
 
   deleteProgressPhoto:
     handler: functions/progress/handler.deleteProgressPhoto
     events:
-      - httpApi: { path: /users/{userId}/photos/{photoId}, method: DELETE }
+      - httpApi:
+          path: "/users/{userId}/photos/{photoId}"
+          method: DELETE
 
   # ── AI Insights ────────────────────────────────────────────────────────────
   getRecommendation:
     handler: functions/ai/handler.getRecommendation
     events:
-      - httpApi: { path: /users/{userId}/insights, method: GET }
+      - httpApi:
+          path: "/users/{userId}/insights"
+          method: GET
 
   requestAnalysis:
     handler: functions/ai/handler.requestAnalysis
     events:
-      - httpApi: { path: /users/{userId}/insights/generate, method: POST }
+      - httpApi:
+          path: "/users/{userId}/insights/generate"
+          method: POST
 
 resources:
   - ${file(./models/dynamodb-tables.yml)}
@@ -2942,7 +3412,6 @@ export default function Insights() {
 --- END: src/pages/Insights.jsx ---
 
 --- START: src/pages/Landing.jsx ---
-import { Link } from 'react-router-dom';
 import { ArrowRight, CheckCircle, TrendingUp, Camera, Brain, BarChart2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
@@ -2993,37 +3462,50 @@ export default function Landing() {
   const handleSignUp = () => base44.auth.redirectToLogin('/dashboard');
 
   return (
-    <div className="min-h-screen font-inter text-white relative" style={{ backgroundColor: '#0F0C29' }}>
+    <div
+      className="min-h-screen font-inter text-white relative overflow-x-hidden"
+      style={{ backgroundColor: '#0F0C29' }}
+    >
       {/* Fixed background image */}
       <div
         className="fixed inset-0 z-0"
         style={{
-          backgroundImage: `url('https://media.base44.com/images/public/69ea569deb9059b940e51f3e/3053e376d_generated_image.png')`,
+          backgroundImage:
+            "url('https://media.base44.com/images/public/69ea569deb9059b940e51f3e/3053e376d_generated_image.png')",
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
       />
+
       {/* Dark overlay */}
-      <div className="fixed inset-0 z-0" style={{ background: 'rgba(15,12,41,0.42)' }} />
+      <div
+        className="fixed inset-0 z-0"
+        style={{ background: 'rgba(15,12,41,0.42)' }}
+      />
+
       {/* Content */}
       <div className="relative z-10">
-
         {/* ── Nav ── */}
-        <header className="sticky top-0 z-50 border-b border-white/10 backdrop-blur-md" style={{ background: 'rgba(15,12,41,0.7)' }}>
-          <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
+        <header
+          className="sticky top-0 z-50 border-b border-white/10 backdrop-blur-md"
+          style={{ background: 'rgba(15,12,41,0.7)' }}
+        >
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
             <span className="font-bold text-lg tracking-tight text-white select-none">
               Fit<span className="text-cyan-400">Ops</span>
             </span>
-            <div className="flex items-center gap-3">
+
+            <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={handleLogin}
-                className="text-sm font-medium text-white/70 hover:text-white transition-colors px-3 py-2"
+                className="text-sm font-medium text-white/70 hover:text-white transition-colors px-2 sm:px-3 py-2"
               >
                 Sign in
               </button>
+
               <button
                 onClick={handleSignUp}
-                className="text-sm font-semibold px-5 py-2 rounded-lg border border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-[#0F0C29] transition-all"
+                className="text-sm font-semibold px-4 sm:px-5 py-2 rounded-lg border border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-[#0F0C29] transition-all"
               >
                 Get started
               </button>
@@ -3032,29 +3514,38 @@ export default function Landing() {
         </header>
 
         {/* ── Hero ── */}
-        <section className="max-w-5xl mx-auto px-6 pt-14 pb-10">
-          <div className="flex flex-col lg:flex-row gap-8 items-start">
-
+        <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-8 sm:pt-10 lg:pt-12 pb-8">
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_300px] lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px] gap-5 lg:gap-8 items-center">
             {/* Left: text card */}
             <div
-              className="flex-1 rounded-2xl p-8 border border-white/15"
-              style={{ background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)' }}
+              className="w-full max-w-[560px] md:max-w-none mx-auto md:mx-0 rounded-2xl p-5 sm:p-6 lg:p-8 border border-white/15"
+              style={{
+                background: 'rgba(255,255,255,0.05)',
+                backdropFilter: 'blur(12px)',
+              }}
             >
-              <h1 className="text-4xl sm:text-5xl font-bold leading-tight">
-                Your body.<br />
-                Your data.<br />
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight">
+                Your body.
+                <br />
+                Your data.
+                <br />
                 <span className="text-orange-400">Your progress.</span>
               </h1>
-              <p className="mt-5 text-sm text-white/70 leading-relaxed max-w-sm">
-                Track weight, measurements, and photos in one clean dashboard. Built for real, long-term progress — with AI personalisation coming in Phase 2.
+
+              <p className="mt-4 sm:mt-5 text-sm text-white/70 leading-relaxed max-w-sm">
+                Track weight, measurements, and photos in one clean dashboard.
+                Built for real, long-term progress — with AI personalisation
+                coming in Phase 2.
               </p>
+
               <button
                 onClick={handleSignUp}
-                className="mt-8 flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm text-white transition-all"
+                className="mt-6 sm:mt-8 flex items-center gap-2 px-5 sm:px-6 py-3 rounded-xl font-semibold text-sm text-white transition-all"
                 style={{ background: 'linear-gradient(135deg, #00BFFF, #4F6EF7)' }}
               >
                 Start tracking free <ArrowRight className="w-4 h-4" />
               </button>
+
               <button
                 onClick={handleLogin}
                 className="mt-3 text-xs text-white/50 hover:text-white transition-colors"
@@ -3065,8 +3556,11 @@ export default function Landing() {
 
             {/* Right: hero image */}
             <div
-              className="flex-1 rounded-2xl overflow-hidden border border-white/15 w-full max-w-sm lg:max-w-none"
-              style={{ background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(8px)' }}
+              className="w-full max-w-[300px] sm:max-w-[340px] md:max-w-[300px] lg:max-w-[380px] xl:max-w-[420px] mx-auto rounded-2xl overflow-hidden border border-white/15"
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                backdropFilter: 'blur(8px)',
+              }}
             >
               <img
                 src="https://media.base44.com/images/public/69ea569deb9059b940e51f3e/cafb45b8e_generated_image.png"
@@ -3078,11 +3572,14 @@ export default function Landing() {
 
           {/* Trust badges */}
           <div
-            className="mt-6 rounded-2xl p-5 border border-white/10"
-            style={{ background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(8px)' }}
+            className="mt-5 sm:mt-6 max-w-[860px] mx-auto rounded-2xl p-4 sm:p-5 border border-white/10"
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              backdropFilter: 'blur(8px)',
+            }}
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {proofs.map(p => (
+              {proofs.map((p) => (
                 <div key={p} className="flex items-center gap-2.5 text-sm text-white/80">
                   <CheckCircle className="w-4 h-4 text-orange-400 flex-shrink-0" />
                   {p}
@@ -3093,13 +3590,15 @@ export default function Landing() {
         </section>
 
         {/* ── Features ── */}
-        <section className="max-w-5xl mx-auto px-6 py-16" style={{ background: 'transparent' }}>
+        <section className="max-w-5xl mx-auto px-4 sm:px-6 py-16">
           <div className="text-center mb-12">
             <h2 className="text-2xl sm:text-3xl font-bold text-white">
               Everything you need to track your body
             </h2>
+
             <p className="mt-3 text-sm text-white/60 max-w-md mx-auto">
-              A focused, distraction-free toolkit built for people serious about body recomposition.
+              A focused, distraction-free toolkit built for people serious about
+              body recomposition.
             </p>
           </div>
 
@@ -3108,12 +3607,17 @@ export default function Landing() {
               <div
                 key={title}
                 className={`rounded-2xl p-6 border ${borderColor} shadow-xl ${glowColor} transition-all hover:scale-[1.02]`}
-                style={{ background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)' }}
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  backdropFilter: 'blur(12px)',
+                }}
               >
                 <div className="mb-4">
                   <Icon className={`w-8 h-8 ${iconColor}`} />
                 </div>
+
                 <h3 className="font-bold text-white text-base mb-2">{title}</h3>
+
                 <p className="text-sm text-white/60 leading-relaxed">{desc}</p>
               </div>
             ))}
@@ -3121,15 +3625,21 @@ export default function Landing() {
         </section>
 
         {/* ── Footer ── */}
-        <footer className="border-t border-white/10 py-8" style={{ background: 'rgba(15,12,41,0.6)' }}>
-          <div className="max-w-5xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/40">
+        <footer
+          className="border-t border-white/10 py-8"
+          style={{ background: 'rgba(15,12,41,0.6)' }}
+        >
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/40">
             <span className="font-bold text-sm text-white">
               Fit<span className="text-cyan-400">Ops</span>
             </span>
-            <span>© {new Date().getFullYear()} FitOps. Built for AWS migration-ready architecture.</span>
+
+            <span>
+              © {new Date().getFullYear()} FitOps. Built for AWS
+              migration-ready architecture.
+            </span>
           </div>
         </footer>
-
       </div>
     </div>
   );
