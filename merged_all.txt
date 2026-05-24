@@ -979,6 +979,198 @@ Report file:
 
 --- END: audit-reports/base44-audit-2026-05-07_18-31-37.txt ---
 
+--- START: infra/terraform/environments/dev/locals.tf ---
+
+--- END: infra/terraform/environments/dev/locals.tf ---
+
+--- START: infra/terraform/environments/dev/main.tf ---
+
+--- END: infra/terraform/environments/dev/main.tf ---
+
+--- START: infra/terraform/environments/dev/outputs.tf ---
+
+--- END: infra/terraform/environments/dev/outputs.tf ---
+
+--- START: infra/terraform/environments/dev/providers.tf ---
+
+--- END: infra/terraform/environments/dev/providers.tf ---
+
+--- START: infra/terraform/environments/dev/terraform.tfvars.example ---
+
+--- END: infra/terraform/environments/dev/terraform.tfvars.example ---
+
+--- START: infra/terraform/environments/dev/variables.tf ---
+
+--- END: infra/terraform/environments/dev/variables.tf ---
+
+--- START: infra/terraform/modules/compute/lambda-function/main.tf ---
+
+--- END: infra/terraform/modules/compute/lambda-function/main.tf ---
+
+--- START: infra/terraform/modules/compute/lambda-function/outputs.tf ---
+
+--- END: infra/terraform/modules/compute/lambda-function/outputs.tf ---
+
+--- START: infra/terraform/modules/compute/lambda-function/variables.tf ---
+
+--- END: infra/terraform/modules/compute/lambda-function/variables.tf ---
+
+--- START: infra/terraform/modules/compute/api-gateway-http/main.tf ---
+
+--- END: infra/terraform/modules/compute/api-gateway-http/main.tf ---
+
+--- START: infra/terraform/modules/compute/api-gateway-http/outputs.tf ---
+
+--- END: infra/terraform/modules/compute/api-gateway-http/outputs.tf ---
+
+--- START: infra/terraform/modules/compute/api-gateway-http/variables.tf ---
+
+--- END: infra/terraform/modules/compute/api-gateway-http/variables.tf ---
+
+--- START: infra/terraform/modules/auth/cognito/main.tf ---
+
+--- END: infra/terraform/modules/auth/cognito/main.tf ---
+
+--- START: infra/terraform/modules/auth/cognito/outputs.tf ---
+
+--- END: infra/terraform/modules/auth/cognito/outputs.tf ---
+
+--- START: infra/terraform/modules/auth/cognito/variables.tf ---
+
+--- END: infra/terraform/modules/auth/cognito/variables.tf ---
+
+--- START: infra/terraform/modules/frontend/static-site/main.tf ---
+
+--- END: infra/terraform/modules/frontend/static-site/main.tf ---
+
+--- START: infra/terraform/modules/frontend/static-site/outputs.tf ---
+
+--- END: infra/terraform/modules/frontend/static-site/outputs.tf ---
+
+--- START: infra/terraform/modules/frontend/static-site/variables.tf ---
+
+--- END: infra/terraform/modules/frontend/static-site/variables.tf ---
+
+--- START: infra/terraform/modules/ai/README.md ---
+# FitOps AI Modules
+
+This directory contains AI-related infrastructure modules.
+
+Current module:
+
+- insights
+  - Generates personalized fitness/progress insights through the backend.
+  - The frontend never calls the AI provider directly.
+  - The backend loads user data, calls the AI model, validates the response, and stores the result.
+
+Future possible modules:
+
+- agent
+- tools
+- knowledge
+- guardrails
+
+These will be added only if the project needs a more advanced AI agent workflow.
+--- END: infra/terraform/modules/ai/README.md ---
+
+--- START: infra/terraform/modules/ai/insights/main.tf ---
+
+--- END: infra/terraform/modules/ai/insights/main.tf ---
+
+--- START: infra/terraform/modules/ai/insights/outputs.tf ---
+
+--- END: infra/terraform/modules/ai/insights/outputs.tf ---
+
+--- START: infra/terraform/modules/ai/insights/variables.tf ---
+
+--- END: infra/terraform/modules/ai/insights/variables.tf ---
+
+--- START: infra/terraform/modules/security/kms/main.tf ---
+
+--- END: infra/terraform/modules/security/kms/main.tf ---
+
+--- START: infra/terraform/modules/security/kms/outputs.tf ---
+
+--- END: infra/terraform/modules/security/kms/outputs.tf ---
+
+--- START: infra/terraform/modules/security/kms/variables.tf ---
+
+--- END: infra/terraform/modules/security/kms/variables.tf ---
+
+--- START: infra/terraform/modules/security/github-oidc/README.md ---
+# GitHub OIDC Module
+
+This module will create the IAM trust configuration that allows GitHub Actions
+to assume an AWS IAM role using OIDC.
+
+Purpose:
+- Avoid long-lived AWS access keys in GitHub.
+- Allow GitHub Actions to deploy infrastructure securely.
+- Scope access by repository, branch, and environment.
+- Keep CI/CD identity separate from application infrastructure.
+
+Planned resources:
+- IAM OIDC provider for token.actions.githubusercontent.com
+- IAM role for GitHub Actions
+- Trust policy restricted to a specific GitHub repository/branch
+- Minimal deploy permissions, refined per project phase
+
+Security rules:
+- No AWS access keys in GitHub Secrets.
+- Use sts:AssumeRoleWithWebIdentity only.
+- Restrict trust policy to the intended repository.
+- Restrict branch access, usually main for deploy.
+- Prefer separate roles for plan and apply in mature setups.
+--- END: infra/terraform/modules/security/github-oidc/README.md ---
+
+--- START: infra/terraform/modules/security/github-oidc/main.tf ---
+
+--- END: infra/terraform/modules/security/github-oidc/main.tf ---
+
+--- START: infra/terraform/modules/security/github-oidc/outputs.tf ---
+
+--- END: infra/terraform/modules/security/github-oidc/outputs.tf ---
+
+--- START: infra/terraform/modules/security/github-oidc/variables.tf ---
+
+--- END: infra/terraform/modules/security/github-oidc/variables.tf ---
+
+--- START: infra/terraform/modules/security/secrets/main.tf ---
+
+--- END: infra/terraform/modules/security/secrets/main.tf ---
+
+--- START: infra/terraform/modules/security/secrets/outputs.tf ---
+
+--- END: infra/terraform/modules/security/secrets/outputs.tf ---
+
+--- START: infra/terraform/modules/security/secrets/variables.tf ---
+
+--- END: infra/terraform/modules/security/secrets/variables.tf ---
+
+--- START: infra/terraform/modules/data/dynamodb-table/main.tf ---
+
+--- END: infra/terraform/modules/data/dynamodb-table/main.tf ---
+
+--- START: infra/terraform/modules/data/dynamodb-table/outputs.tf ---
+
+--- END: infra/terraform/modules/data/dynamodb-table/outputs.tf ---
+
+--- START: infra/terraform/modules/data/dynamodb-table/variables.tf ---
+
+--- END: infra/terraform/modules/data/dynamodb-table/variables.tf ---
+
+--- START: infra/terraform/modules/data/photos-bucket/main.tf ---
+
+--- END: infra/terraform/modules/data/photos-bucket/main.tf ---
+
+--- START: infra/terraform/modules/data/photos-bucket/outputs.tf ---
+
+--- END: infra/terraform/modules/data/photos-bucket/outputs.tf ---
+
+--- START: infra/terraform/modules/data/photos-bucket/variables.tf ---
+
+--- END: infra/terraform/modules/data/photos-bucket/variables.tf ---
+
 --- START: frontend/components.json ---
 {
   "$schema": "https://ui.shadcn.com/schema.json",
@@ -8541,6 +8733,91 @@ export function useIsMobile() {
 }
 --- END: frontend/src/hooks/use-mobile.jsx ---
 
+--- START: .github/workflows/frontend-ci.yml ---
+name: Frontend CI
+
+on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+
+jobs:
+  build:
+    name: Build frontend
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+--- END: .github/workflows/frontend-ci.yml ---
+
+--- START: .github/workflows/terraform-ci.yml ---
+name: Terraform CI
+
+on:
+  pull_request:
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform-ci.yml"
+
+jobs:
+  validate:
+    name: Validate Terraform
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: infra/terraform/environments/dev
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.0
+
+      - name: Terraform fmt check
+        run: terraform fmt -check -recursive ../../
+
+      - name: Terraform init without backend
+        run: terraform init -backend=false
+
+      - name: Terraform validate
+        run: terraform validate
+--- END: .github/workflows/terraform-ci.yml ---
+
 --- START: entities/AIRecommendation ---
 {
   "name": "AIRecommendation",
@@ -8750,6 +9027,51 @@ export function useIsMobile() {
   ]
 }
 --- END: entities/WeightLog ---
+
+--- START: scripts/bootstrap-aws.sh ---
+#!/usr/bin/env bash
+set -euo pipefail
+
+# FitOps AWS Bootstrap
+#
+# Purpose:
+#   Prepare one-time AWS prerequisites required before GitHub Actions
+#   can deploy infrastructure securely.
+#
+# Responsibilities:
+#   - Create Terraform remote state S3 bucket
+#   - Create Terraform lock DynamoDB table
+#   - Optionally create/use a KMS key for Terraform state encryption
+#   - Create GitHub Actions OIDC provider/role
+#   - Generate Terraform backend configuration if needed
+#
+# Important:
+#   This script is NOT the normal deployment path.
+#   Regular infrastructure deployment should run through GitHub Actions.
+
+PROJECT="${PROJECT:-fitops}"
+ENVIRONMENT="${ENVIRONMENT:-dev}"
+AWS_REGION="${AWS_REGION:-us-east-1}"
+
+if ! command -v aws >/dev/null 2>&1; then
+  echo "ERROR: aws CLI is not installed or not in PATH."
+  exit 1
+fi
+
+ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+
+echo "FitOps AWS Bootstrap"
+echo "--------------------"
+echo "Project:      $PROJECT"
+echo "Environment:  $ENVIRONMENT"
+echo "AWS Region:   $AWS_REGION"
+echo "Account ID:   $ACCOUNT_ID"
+echo
+echo "Bootstrap implementation will be added next:"
+echo "- Terraform remote state"
+echo "- DynamoDB state locking"
+echo "- GitHub Actions OIDC role"
+--- END: scripts/bootstrap-aws.sh ---
 
 --- START: docs/MIGRATION_PLAN.md ---
 # FitOps Migration Plan — From Base44 Prototype to AWS-Native App
