@@ -1,32 +1,19 @@
 # FitOps AI Modules
 
-Future AI infrastructure modules for the FitOps AI layer.
+This directory contains AI-related infrastructure modules.
 
-Modules:
+Current module:
+
+- insights
+  - Generates personalized fitness/progress insights through the backend.
+  - The frontend never calls the AI provider directly.
+  - The backend loads user data, calls the AI model, validates the response, and stores the result.
+
+Future possible modules:
 
 - agent
-  - The main AI agent configuration.
-
 - tools
-  - Actions/tools the agent can call.
-  - Example: get user profile, get progress logs, save recommendation.
-
 - knowledge
-  - Knowledge base / RAG layer.
-  - Used for private documents, fitness rules, nutrition guidance, and app-specific knowledge.
+- guardrails
 
-- safety
-  - AI safety boundaries.
-  - Used to prevent unsafe, private, medical, or out-of-scope responses.
-
-- workflow
-  - AI orchestration flow.
-  - Coordinates steps such as loading user data, calling the AI model/agent, validating output, and saving results.
-
-Security rules:
-- No AI keys in the frontend.
-- AI calls go through the backend only.
-- Secrets stay in Secrets Manager or SSM SecureString.
-- Sensitive values are encrypted with KMS.
-- Agent tools use least-privilege IAM.
-- User data access must be scoped to the authenticated user.
+These will be added only if the project needs a more advanced AI agent workflow.
