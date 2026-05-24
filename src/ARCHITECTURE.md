@@ -9,9 +9,9 @@
 | `src/api/` | Browser | ✅ Yes (compiled) | S3 + CloudFront |
 | `src/lib/` | Browser | ✅ Yes (compiled) | S3 + CloudFront |
 | `src/hooks/` | Browser | ✅ Yes (compiled) | S3 + CloudFront |
-| `src/backend/functions/` | Node.js only | ❌ Never | AWS Lambda |
-| `src/backend/models/` | Reference only | ❌ Never | CloudFormation / CDK |
-| `src/backend/serverless.yml` | CLI only | ❌ Never | Serverless Framework deploy |
+| `backend/functions/` | Node.js only | ❌ Never | AWS Lambda |
+| `backend/models/` | Reference only | ❌ Never | CloudFormation / CDK |
+| `backend/serverless.yml` | CLI only | ❌ Never | Serverless Framework deploy |
 
 ---
 
@@ -61,15 +61,15 @@ In Phase 2, swap the internals — the function signatures stay identical.
 ### `src/lib/` — Frontend utilities (FRONTEND)
 Auth context, hooks (`useCurrentUser`), utility functions.
 
-### `src/backend/functions/` — AWS Lambda handlers (BACKEND ONLY)
+### `backend/functions/` — AWS Lambda handlers (BACKEND ONLY)
 Node.js CommonJS. Never imported by React. Deploy with Serverless Framework:
 ```bash
-cd src/backend
+cd backend
 npm install
 npx serverless deploy --stage prod
 ```
 
-### `src/backend/models/` — DynamoDB table definitions (BACKEND ONLY)
+### `backend/models/` — DynamoDB table definitions (BACKEND ONLY)
 CloudFormation YAML. Used by `serverless.yml` to provision DynamoDB tables.
 
 ---
@@ -84,10 +84,10 @@ Browser (S3 + CloudFront)
 API Gateway  (AWS)
     │
     ▼
-Lambda functions  (src/backend/functions/)
+Lambda functions  (backend/functions/)
     │
     ▼
-DynamoDB  (tables defined in src/backend/models/)
+DynamoDB  (tables defined in backend/models/)
 ```
 
 Frontend never talks to DynamoDB directly.
@@ -98,7 +98,7 @@ The only communication is HTTP via API Gateway.
 
 ## Phase 2 Migration Steps
 
-1. `cd src/backend && npx serverless deploy --stage prod`
+1. `cd backend && npx serverless deploy --stage prod`
    → Note the API Gateway base URL output (e.g. `https://xxx.execute-api.us-east-1.amazonaws.com/prod`)
 
 2. Create `.env.production` in project root:

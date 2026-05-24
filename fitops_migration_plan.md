@@ -88,9 +88,9 @@ The future goal is to replace this with our own backend flow using OpenAI, proba
 The project already contains an initial backend direction:
 
 ```text
-src/backend/functions/
-src/backend/models/
-src/backend/serverless.yml
+backend/functions/
+backend/models/
+backend/serverless.yml
 ```
 
 This backend includes Lambda handlers for:

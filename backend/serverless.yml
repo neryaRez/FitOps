@@ -1,6 +1,6 @@
 # backend/serverless.yml
 # Serverless Framework v3 configuration for FitOps backend.
-# Deploy: cd src/backend && npm install && npx serverless deploy --stage prod
+# Deploy: cd backend && npm install && npx serverless deploy --stage prod
 
 service: fitops-api
 

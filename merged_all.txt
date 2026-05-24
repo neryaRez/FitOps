@@ -400,9 +400,9 @@ The future goal is to replace this with our own backend flow using OpenAI, proba
 The project already contains an initial backend direction:
 
 ```text
-src/backend/functions/
-src/backend/models/
-src/backend/serverless.yml
+backend/functions/
+backend/models/
+backend/serverless.yml
 ```
 
 This backend includes Lambda handlers for:
@@ -1126,6 +1126,497 @@ export default defineConfig({
 });
 --- END: vite.config.js ---
 
+--- START: backend/serverless.yml ---
+# backend/serverless.yml
+# Serverless Framework v3 configuration for FitOps backend.
+# Deploy: cd backend && npm install && npx serverless deploy --stage prod
+
+service: fitops-api
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  environment:
+    PROFILES_TABLE: fitops-user-profiles
+    WEIGHT_TABLE: fitops-weight-logs
+    MEASURE_TABLE: fitops-measurement-logs
+    PHOTOS_TABLE: fitops-progress-photos
+    AI_TABLE: fitops-ai-recommendations
+    PHOTOS_BUCKET: fitops-progress-photos
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:Query
+            - dynamodb:Scan
+          Resource: arn:aws:dynamodb:${self:provider.region}:*:table/fitops-*
+
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
+          Resource: arn:aws:s3:::fitops-progress-photos/*
+
+functions:
+  # ── Users ──────────────────────────────────────────────────────────────────
+  getProfile:
+    handler: functions/users/handler.getProfile
+    events:
+      - httpApi:
+          path: "/users/{userId}/profile"
+          method: GET
+
+  upsertProfile:
+    handler: functions/users/handler.upsertProfile
+    events:
+      - httpApi:
+          path: "/users/{userId}/profile"
+          method: PUT
+
+  # ── Weight Logs ────────────────────────────────────────────────────────────
+  getWeightLogs:
+    handler: functions/progress/handler.getWeightLogs
+    events:
+      - httpApi:
+          path: "/users/{userId}/weight"
+          method: GET
+
+  addWeightLog:
+    handler: functions/progress/handler.addWeightLog
+    events:
+      - httpApi:
+          path: "/users/{userId}/weight"
+          method: POST
+
+  deleteWeightLog:
+    handler: functions/progress/handler.deleteWeightLog
+    events:
+      - httpApi:
+          path: "/users/{userId}/weight/{logId}"
+          method: DELETE
+
+  # ── Measurements ───────────────────────────────────────────────────────────
+  getMeasurementLogs:
+    handler: functions/progress/handler.getMeasurementLogs
+    events:
+      - httpApi:
+          path: "/users/{userId}/measurements"
+          method: GET
+
+  addMeasurementLog:
+    handler: functions/progress/handler.addMeasurementLog
+    events:
+      - httpApi:
+          path: "/users/{userId}/measurements"
+          method: POST
+
+  deleteMeasurementLog:
+    handler: functions/progress/handler.deleteMeasurementLog
+    events:
+      - httpApi:
+          path: "/users/{userId}/measurements/{logId}"
+          method: DELETE
+
+  # ── Progress Photos ────────────────────────────────────────────────────────
+  getProgressPhotos:
+    handler: functions/progress/handler.getProgressPhotos
+    events:
+      - httpApi:
+          path: "/users/{userId}/photos"
+          method: GET
+
+  uploadProgressPhoto:
+    handler: functions/progress/handler.uploadProgressPhoto
+    events:
+      - httpApi:
+          path: "/users/{userId}/photos"
+          method: POST
+
+  deleteProgressPhoto:
+    handler: functions/progress/handler.deleteProgressPhoto
+    events:
+      - httpApi:
+          path: "/users/{userId}/photos/{photoId}"
+          method: DELETE
+
+  # ── AI Insights ────────────────────────────────────────────────────────────
+  getRecommendation:
+    handler: functions/ai/handler.getRecommendation
+    events:
+      - httpApi:
+          path: "/users/{userId}/insights"
+          method: GET
+
+  requestAnalysis:
+    handler: functions/ai/handler.requestAnalysis
+    events:
+      - httpApi:
+          path: "/users/{userId}/insights/generate"
+          method: POST
+
+resources:
+  - ${file(./models/dynamodb-tables.yml)}
+--- END: backend/serverless.yml ---
+
+--- START: backend/models/dynamodb-tables.yml ---
+# backend/models/dynamodb-tables.yml
+# DynamoDB table definitions — mirrors the Base44 entities in entities/
+# Use these in serverless.yml under resources.Resources or with aws-cli / CDK.
+
+Resources:
+
+  UserProfilesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: fitops-user-profiles
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+
+  WeightLogsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: fitops-weight-logs
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: date
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: date
+          KeyType: RANGE
+
+  MeasurementLogsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: fitops-measurement-logs
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: date
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: date
+          KeyType: RANGE
+
+  ProgressPhotosTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: fitops-progress-photos
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: id
+          KeyType: RANGE
+
+  AIRecommendationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: fitops-ai-recommendations
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+
+  ProgressPhotosBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: fitops-progress-photos
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, PUT, POST]
+            AllowedOrigins: ['*']
+--- END: backend/models/dynamodb-tables.yml ---
+
+--- START: backend/functions/progress/handler.js ---
+/* eslint-disable no-undef */
+/**
+ * backend/functions/progress/handler.js
+ * AWS Lambda handlers for Weight Logs, Measurements, and Progress Photos.
+ * Phase 2: wire these to API Gateway routes in serverless.yml
+ *
+ * DynamoDB Tables:
+ *   fitops-weight-logs       PK: userId  SK: date
+ *   fitops-measurement-logs  PK: userId  SK: date
+ *   fitops-progress-photos   PK: userId  SK: date#angle
+ */
+
+const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+const {
+  DynamoDBDocumentClient,
+  QueryCommand,
+  PutCommand,
+  DeleteCommand,
+} = require('@aws-sdk/lib-dynamodb');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { v4: uuidv4 } = require('uuid');
+
+const client = new DynamoDBClient({});
+const ddb = DynamoDBDocumentClient.from(client);
+const s3 = new S3Client({});
+
+const WEIGHT_TABLE  = process.env.WEIGHT_TABLE  || 'fitops-weight-logs';
+const MEASURE_TABLE = process.env.MEASURE_TABLE  || 'fitops-measurement-logs';
+const PHOTOS_TABLE  = process.env.PHOTOS_TABLE   || 'fitops-progress-photos';
+const PHOTOS_BUCKET = process.env.PHOTOS_BUCKET  || 'fitops-progress-photos';
+
+// ── Weight Logs ───────────────────────────────────────────────────────────────
+
+// GET /users/{userId}/weight
+module.exports.getWeightLogs = async (event) => {
+  const { userId } = event.pathParameters;
+  const result = await ddb.send(new QueryCommand({
+    TableName: WEIGHT_TABLE,
+    KeyConditionExpression: 'userId = :uid',
+    ExpressionAttributeValues: { ':uid': userId },
+    ScanIndexForward: false,
+    Limit: 100,
+  }));
+  return respond(200, result.Items);
+};
+
+// POST /users/{userId}/weight
+module.exports.addWeightLog = async (event) => {
+  const { userId } = event.pathParameters;
+  const { date, weightKg } = JSON.parse(event.body);
+  const item = { userId, date, weightKg, id: uuidv4(), createdAt: new Date().toISOString() };
+  await ddb.send(new PutCommand({ TableName: WEIGHT_TABLE, Item: item }));
+  return respond(201, item);
+};
+
+// DELETE /users/{userId}/weight/{logId}
+module.exports.deleteWeightLog = async (event) => {
+  const { userId, logId } = event.pathParameters;
+  await ddb.send(new DeleteCommand({ TableName: WEIGHT_TABLE, Key: { userId, id: logId } }));
+  return respond(204, {});
+};
+
+// ── Measurement Logs ──────────────────────────────────────────────────────────
+
+// GET /users/{userId}/measurements
+module.exports.getMeasurementLogs = async (event) => {
+  const { userId } = event.pathParameters;
+  const result = await ddb.send(new QueryCommand({
+    TableName: MEASURE_TABLE,
+    KeyConditionExpression: 'userId = :uid',
+    ExpressionAttributeValues: { ':uid': userId },
+    ScanIndexForward: false,
+    Limit: 100,
+  }));
+  return respond(200, result.Items);
+};
+
+// POST /users/{userId}/measurements
+module.exports.addMeasurementLog = async (event) => {
+  const { userId } = event.pathParameters;
+  const body = JSON.parse(event.body);
+  const item = { userId, ...body, id: uuidv4(), createdAt: new Date().toISOString() };
+  await ddb.send(new PutCommand({ TableName: MEASURE_TABLE, Item: item }));
+  return respond(201, item);
+};
+
+// DELETE /users/{userId}/measurements/{logId}
+module.exports.deleteMeasurementLog = async (event) => {
+  const { userId, logId } = event.pathParameters;
+  await ddb.send(new DeleteCommand({ TableName: MEASURE_TABLE, Key: { userId, id: logId } }));
+  return respond(204, {});
+};
+
+// ── Progress Photos ───────────────────────────────────────────────────────────
+
+// GET /users/{userId}/photos
+module.exports.getProgressPhotos = async (event) => {
+  const { userId } = event.pathParameters;
+  const result = await ddb.send(new QueryCommand({
+    TableName: PHOTOS_TABLE,
+    KeyConditionExpression: 'userId = :uid',
+    ExpressionAttributeValues: { ':uid': userId },
+    ScanIndexForward: false,
+    Limit: 100,
+  }));
+  return respond(200, result.Items);
+};
+
+// POST /users/{userId}/photos  (expects multipart OR base64 body)
+module.exports.uploadProgressPhoto = async (event) => {
+  const { userId } = event.pathParameters;
+  const { date, angle, fileBase64, mimeType } = JSON.parse(event.body);
+  const key = `photos/${userId}/${date}/${angle}-${uuidv4()}`;
+  await s3.send(new PutObjectCommand({
+    Bucket: PHOTOS_BUCKET,
+    Key: key,
+    Body: Buffer.from(fileBase64, 'base64'),
+    ContentType: mimeType || 'image/jpeg',
+  }));
+  const photoUrl = `https://${PHOTOS_BUCKET}.s3.amazonaws.com/${key}`;
+  const item = { userId, date, angle, photoUrl, id: uuidv4(), createdAt: new Date().toISOString() };
+  await ddb.send(new PutCommand({ TableName: PHOTOS_TABLE, Item: item }));
+  return respond(201, item);
+};
+
+// DELETE /users/{userId}/photos/{photoId}
+module.exports.deleteProgressPhoto = async (event) => {
+  const { userId, photoId } = event.pathParameters;
+  await ddb.send(new DeleteCommand({ TableName: PHOTOS_TABLE, Key: { userId, id: photoId } }));
+  return respond(204, {});
+};
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+function respond(statusCode, body) {
+  return {
+    statusCode,
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    body: JSON.stringify(body),
+  };
+}
+--- END: backend/functions/progress/handler.js ---
+
+--- START: backend/functions/users/handler.js ---
+/* eslint-disable no-undef */
+/**
+ * backend/functions/users/handler.js
+ * AWS Lambda handlers for User Profile operations.
+ * Phase 2: wire these to API Gateway routes in serverless.yml
+ *
+ * DynamoDB Table: fitops-user-profiles
+ * Partition key: userId (String)
+ */
+
+const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+const { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
+
+const client = new DynamoDBClient({});
+const ddb = DynamoDBDocumentClient.from(client);
+const TABLE = process.env.PROFILES_TABLE || 'fitops-user-profiles';
+
+// GET /users/{userId}/profile
+module.exports.getProfile = async (event) => {
+  const { userId } = event.pathParameters;
+  const result = await ddb.send(new GetCommand({ TableName: TABLE, Key: { userId } }));
+  if (!result.Item) return respond(404, { message: 'Profile not found' });
+  return respond(200, result.Item);
+};
+
+// PUT /users/{userId}/profile  (upsert)
+module.exports.upsertProfile = async (event) => {
+  const { userId } = event.pathParameters;
+  const body = JSON.parse(event.body);
+  const item = { ...body, userId, updatedAt: new Date().toISOString() };
+  await ddb.send(new PutCommand({ TableName: TABLE, Item: item }));
+  return respond(200, item);
+};
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+function respond(statusCode, body) {
+  return {
+    statusCode,
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    body: JSON.stringify(body),
+  };
+}
+--- END: backend/functions/users/handler.js ---
+
+--- START: backend/functions/ai/handler.js ---
+/* eslint-disable no-undef */
+/**
+ * backend/functions/ai/handler.js
+ * AWS Lambda handler for AI Recommendations.
+ * Phase 2: replace stub logic with calls to AWS Bedrock / OpenAI via Step Functions.
+ *
+ * DynamoDB Table: fitops-ai-recommendations
+ * Partition key: userId (String)
+ */
+
+const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+const { DynamoDBDocumentClient, GetCommand, PutCommand } = require('@aws-sdk/lib-dynamodb');
+
+const client = new DynamoDBClient({});
+const ddb = DynamoDBDocumentClient.from(client);
+const TABLE = process.env.AI_TABLE || 'fitops-ai-recommendations';
+
+// GET /users/{userId}/insights
+module.exports.getRecommendation = async (event) => {
+  const { userId } = event.pathParameters;
+  const result = await ddb.send(new GetCommand({ TableName: TABLE, Key: { userId } }));
+  if (!result.Item) return respond(404, { message: 'No insights yet' });
+  return respond(200, result.Item);
+};
+
+// POST /users/{userId}/insights/generate
+module.exports.requestAnalysis = async (event) => {
+  const { userId } = event.pathParameters;
+  const { profile, weightLogs = [], measurementLogs = [] } = JSON.parse(event.body);
+
+  // ── Phase 1: stub logic (mirrors frontend aiService.js) ──────────────────
+  const heightM = profile.heightCm / 100;
+  const bmi = Math.round((profile.startingWeightKg / (heightM * heightM)) * 10) / 10;
+  let bmiCategory = 'Normal weight';
+  if (bmi < 18.5) bmiCategory = 'Underweight';
+  else if (bmi >= 25 && bmi < 30) bmiCategory = 'Overweight';
+  else if (bmi >= 30) bmiCategory = 'Obese';
+
+  const logsCount = weightLogs.length + measurementLogs.length;
+
+  const item = {
+    userId,
+    generatedAt: new Date().toISOString(),
+    status: 'stub',
+    bmiAnalysis: `Your BMI is ${bmi} (${bmiCategory}). [Phase 2: Bedrock AI analysis here]`,
+    fitnessPath: `Structured plan for goal: ${profile.primaryGoal?.replace('_', ' ')}. [Phase 2: personalized path here]`,
+    mealGuidance: `Calorie target based on profile & activity. [Phase 2: personalized meal plan here]`,
+    workoutPlan: `${profile.activityLevel} activity → 3–5 sessions/week recommended. [Phase 2: personalized plan here]`,
+    progressInsights: `${logsCount} total entries logged. [Phase 2: trend analysis here]`,
+  };
+
+  // ── Phase 2: replace above block with ──────────────────────────────────────
+  // const sfn = new SFNClient({});
+  // await sfn.send(new StartExecutionCommand({ stateMachineArn: process.env.AI_STATE_MACHINE_ARN, input: JSON.stringify({ userId, profile }) }));
+  // return respond(202, { message: 'Analysis started' });
+  // ─────────────────────────────────────────────────────────────────────────
+
+  await ddb.send(new PutCommand({ TableName: TABLE, Item: item }));
+  return respond(200, item);
+};
+
+function respond(statusCode, body) {
+  return {
+    statusCode,
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    body: JSON.stringify(body),
+  };
+}
+--- END: backend/functions/ai/handler.js ---
+
 --- START: audit-reports/base44-audit-2026-05-07_18-31-37.txt ---
 FitOps Base44 Dependency Audit
 Generated at: Thu 07 May 2026 06:31:37 PM IDT
@@ -1614,9 +2105,9 @@ Report file:
 | `src/api/` | Browser | ✅ Yes (compiled) | S3 + CloudFront |
 | `src/lib/` | Browser | ✅ Yes (compiled) | S3 + CloudFront |
 | `src/hooks/` | Browser | ✅ Yes (compiled) | S3 + CloudFront |
-| `src/backend/functions/` | Node.js only | ❌ Never | AWS Lambda |
-| `src/backend/models/` | Reference only | ❌ Never | CloudFormation / CDK |
-| `src/backend/serverless.yml` | CLI only | ❌ Never | Serverless Framework deploy |
+| `backend/functions/` | Node.js only | ❌ Never | AWS Lambda |
+| `backend/models/` | Reference only | ❌ Never | CloudFormation / CDK |
+| `backend/serverless.yml` | CLI only | ❌ Never | Serverless Framework deploy |
 
 ---
 
@@ -1666,15 +2157,15 @@ In Phase 2, swap the internals — the function signatures stay identical.
 ### `src/lib/` — Frontend utilities (FRONTEND)
 Auth context, hooks (`useCurrentUser`), utility functions.
 
-### `src/backend/functions/` — AWS Lambda handlers (BACKEND ONLY)
+### `backend/functions/` — AWS Lambda handlers (BACKEND ONLY)
 Node.js CommonJS. Never imported by React. Deploy with Serverless Framework:
 ```bash
-cd src/backend
+cd backend
 npm install
 npx serverless deploy --stage prod
 ```
 
-### `src/backend/models/` — DynamoDB table definitions (BACKEND ONLY)
+### `backend/models/` — DynamoDB table definitions (BACKEND ONLY)
 CloudFormation YAML. Used by `serverless.yml` to provision DynamoDB tables.
 
 ---
@@ -1689,10 +2180,10 @@ Browser (S3 + CloudFront)
 API Gateway  (AWS)
     │
     ▼
-Lambda functions  (src/backend/functions/)
+Lambda functions  (backend/functions/)
     │
     ▼
-DynamoDB  (tables defined in src/backend/models/)
+DynamoDB  (tables defined in backend/models/)
 ```
 
 Frontend never talks to DynamoDB directly.
@@ -1703,7 +2194,7 @@ The only communication is HTTP via API Gateway.
 
 ## Phase 2 Migration Steps
 
-1. `cd src/backend && npx serverless deploy --stage prod`
+1. `cd backend && npx serverless deploy --stage prod`
    → Note the API Gateway base URL output (e.g. `https://xxx.execute-api.us-east-1.amazonaws.com/prod`)
 
 2. Create `.env.production` in project root:
@@ -1928,497 +2419,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <App />
 )
 --- END: src/main.jsx ---
-
---- START: src/backend/serverless.yml ---
-# backend/serverless.yml
-# Serverless Framework v3 configuration for FitOps backend.
-# Deploy: cd src/backend && npm install && npx serverless deploy --stage prod
-
-service: fitops-api
-
-frameworkVersion: '3'
-
-provider:
-  name: aws
-  runtime: nodejs20.x
-  region: us-east-1
-  stage: ${opt:stage, 'dev'}
-  environment:
-    PROFILES_TABLE: fitops-user-profiles
-    WEIGHT_TABLE: fitops-weight-logs
-    MEASURE_TABLE: fitops-measurement-logs
-    PHOTOS_TABLE: fitops-progress-photos
-    AI_TABLE: fitops-ai-recommendations
-    PHOTOS_BUCKET: fitops-progress-photos
-  iam:
-    role:
-      statements:
-        - Effect: Allow
-          Action:
-            - dynamodb:GetItem
-            - dynamodb:PutItem
-            - dynamodb:UpdateItem
-            - dynamodb:DeleteItem
-            - dynamodb:Query
-            - dynamodb:Scan
-          Resource: arn:aws:dynamodb:${self:provider.region}:*:table/fitops-*
-
-        - Effect: Allow
-          Action:
-            - s3:PutObject
-            - s3:GetObject
-            - s3:DeleteObject
-          Resource: arn:aws:s3:::fitops-progress-photos/*
-
-functions:
-  # ── Users ──────────────────────────────────────────────────────────────────
-  getProfile:
-    handler: functions/users/handler.getProfile
-    events:
-      - httpApi:
-          path: "/users/{userId}/profile"
-          method: GET
-
-  upsertProfile:
-    handler: functions/users/handler.upsertProfile
-    events:
-      - httpApi:
-          path: "/users/{userId}/profile"
-          method: PUT
-
-  # ── Weight Logs ────────────────────────────────────────────────────────────
-  getWeightLogs:
-    handler: functions/progress/handler.getWeightLogs
-    events:
-      - httpApi:
-          path: "/users/{userId}/weight"
-          method: GET
-
-  addWeightLog:
-    handler: functions/progress/handler.addWeightLog
-    events:
-      - httpApi:
-          path: "/users/{userId}/weight"
-          method: POST
-
-  deleteWeightLog:
-    handler: functions/progress/handler.deleteWeightLog
-    events:
-      - httpApi:
-          path: "/users/{userId}/weight/{logId}"
-          method: DELETE
-
-  # ── Measurements ───────────────────────────────────────────────────────────
-  getMeasurementLogs:
-    handler: functions/progress/handler.getMeasurementLogs
-    events:
-      - httpApi:
-          path: "/users/{userId}/measurements"
-          method: GET
-
-  addMeasurementLog:
-    handler: functions/progress/handler.addMeasurementLog
-    events:
-      - httpApi:
-          path: "/users/{userId}/measurements"
-          method: POST
-
-  deleteMeasurementLog:
-    handler: functions/progress/handler.deleteMeasurementLog
-    events:
-      - httpApi:
-          path: "/users/{userId}/measurements/{logId}"
-          method: DELETE
-
-  # ── Progress Photos ────────────────────────────────────────────────────────
-  getProgressPhotos:
-    handler: functions/progress/handler.getProgressPhotos
-    events:
-      - httpApi:
-          path: "/users/{userId}/photos"
-          method: GET
-
-  uploadProgressPhoto:
-    handler: functions/progress/handler.uploadProgressPhoto
-    events:
-      - httpApi:
-          path: "/users/{userId}/photos"
-          method: POST
-
-  deleteProgressPhoto:
-    handler: functions/progress/handler.deleteProgressPhoto
-    events:
-      - httpApi:
-          path: "/users/{userId}/photos/{photoId}"
-          method: DELETE
-
-  # ── AI Insights ────────────────────────────────────────────────────────────
-  getRecommendation:
-    handler: functions/ai/handler.getRecommendation
-    events:
-      - httpApi:
-          path: "/users/{userId}/insights"
-          method: GET
-
-  requestAnalysis:
-    handler: functions/ai/handler.requestAnalysis
-    events:
-      - httpApi:
-          path: "/users/{userId}/insights/generate"
-          method: POST
-
-resources:
-  - ${file(./models/dynamodb-tables.yml)}
---- END: src/backend/serverless.yml ---
-
---- START: src/backend/models/dynamodb-tables.yml ---
-# backend/models/dynamodb-tables.yml
-# DynamoDB table definitions — mirrors the Base44 entities in entities/
-# Use these in serverless.yml under resources.Resources or with aws-cli / CDK.
-
-Resources:
-
-  UserProfilesTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: fitops-user-profiles
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: userId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: userId
-          KeyType: HASH
-
-  WeightLogsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: fitops-weight-logs
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: userId
-          AttributeType: S
-        - AttributeName: date
-          AttributeType: S
-      KeySchema:
-        - AttributeName: userId
-          KeyType: HASH
-        - AttributeName: date
-          KeyType: RANGE
-
-  MeasurementLogsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: fitops-measurement-logs
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: userId
-          AttributeType: S
-        - AttributeName: date
-          AttributeType: S
-      KeySchema:
-        - AttributeName: userId
-          KeyType: HASH
-        - AttributeName: date
-          KeyType: RANGE
-
-  ProgressPhotosTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: fitops-progress-photos
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: userId
-          AttributeType: S
-        - AttributeName: id
-          AttributeType: S
-      KeySchema:
-        - AttributeName: userId
-          KeyType: HASH
-        - AttributeName: id
-          KeyType: RANGE
-
-  AIRecommendationsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: fitops-ai-recommendations
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: userId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: userId
-          KeyType: HASH
-
-  ProgressPhotosBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: fitops-progress-photos
-      CorsConfiguration:
-        CorsRules:
-          - AllowedHeaders: ['*']
-            AllowedMethods: [GET, PUT, POST]
-            AllowedOrigins: ['*']
---- END: src/backend/models/dynamodb-tables.yml ---
-
---- START: src/backend/functions/progress/handler.js ---
-/* eslint-disable no-undef */
-/**
- * backend/functions/progress/handler.js
- * AWS Lambda handlers for Weight Logs, Measurements, and Progress Photos.
- * Phase 2: wire these to API Gateway routes in serverless.yml
- *
- * DynamoDB Tables:
- *   fitops-weight-logs       PK: userId  SK: date
- *   fitops-measurement-logs  PK: userId  SK: date
- *   fitops-progress-photos   PK: userId  SK: date#angle
- */
-
-const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const {
-  DynamoDBDocumentClient,
-  QueryCommand,
-  PutCommand,
-  DeleteCommand,
-} = require('@aws-sdk/lib-dynamodb');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
-const { v4: uuidv4 } = require('uuid');
-
-const client = new DynamoDBClient({});
-const ddb = DynamoDBDocumentClient.from(client);
-const s3 = new S3Client({});
-
-const WEIGHT_TABLE  = process.env.WEIGHT_TABLE  || 'fitops-weight-logs';
-const MEASURE_TABLE = process.env.MEASURE_TABLE  || 'fitops-measurement-logs';
-const PHOTOS_TABLE  = process.env.PHOTOS_TABLE   || 'fitops-progress-photos';
-const PHOTOS_BUCKET = process.env.PHOTOS_BUCKET  || 'fitops-progress-photos';
-
-// ── Weight Logs ───────────────────────────────────────────────────────────────
-
-// GET /users/{userId}/weight
-module.exports.getWeightLogs = async (event) => {
-  const { userId } = event.pathParameters;
-  const result = await ddb.send(new QueryCommand({
-    TableName: WEIGHT_TABLE,
-    KeyConditionExpression: 'userId = :uid',
-    ExpressionAttributeValues: { ':uid': userId },
-    ScanIndexForward: false,
-    Limit: 100,
-  }));
-  return respond(200, result.Items);
-};
-
-// POST /users/{userId}/weight
-module.exports.addWeightLog = async (event) => {
-  const { userId } = event.pathParameters;
-  const { date, weightKg } = JSON.parse(event.body);
-  const item = { userId, date, weightKg, id: uuidv4(), createdAt: new Date().toISOString() };
-  await ddb.send(new PutCommand({ TableName: WEIGHT_TABLE, Item: item }));
-  return respond(201, item);
-};
-
-// DELETE /users/{userId}/weight/{logId}
-module.exports.deleteWeightLog = async (event) => {
-  const { userId, logId } = event.pathParameters;
-  await ddb.send(new DeleteCommand({ TableName: WEIGHT_TABLE, Key: { userId, id: logId } }));
-  return respond(204, {});
-};
-
-// ── Measurement Logs ──────────────────────────────────────────────────────────
-
-// GET /users/{userId}/measurements
-module.exports.getMeasurementLogs = async (event) => {
-  const { userId } = event.pathParameters;
-  const result = await ddb.send(new QueryCommand({
-    TableName: MEASURE_TABLE,
-    KeyConditionExpression: 'userId = :uid',
-    ExpressionAttributeValues: { ':uid': userId },
-    ScanIndexForward: false,
-    Limit: 100,
-  }));
-  return respond(200, result.Items);
-};
-
-// POST /users/{userId}/measurements
-module.exports.addMeasurementLog = async (event) => {
-  const { userId } = event.pathParameters;
-  const body = JSON.parse(event.body);
-  const item = { userId, ...body, id: uuidv4(), createdAt: new Date().toISOString() };
-  await ddb.send(new PutCommand({ TableName: MEASURE_TABLE, Item: item }));
-  return respond(201, item);
-};
-
-// DELETE /users/{userId}/measurements/{logId}
-module.exports.deleteMeasurementLog = async (event) => {
-  const { userId, logId } = event.pathParameters;
-  await ddb.send(new DeleteCommand({ TableName: MEASURE_TABLE, Key: { userId, id: logId } }));
-  return respond(204, {});
-};
-
-// ── Progress Photos ───────────────────────────────────────────────────────────
-
-// GET /users/{userId}/photos
-module.exports.getProgressPhotos = async (event) => {
-  const { userId } = event.pathParameters;
-  const result = await ddb.send(new QueryCommand({
-    TableName: PHOTOS_TABLE,
-    KeyConditionExpression: 'userId = :uid',
-    ExpressionAttributeValues: { ':uid': userId },
-    ScanIndexForward: false,
-    Limit: 100,
-  }));
-  return respond(200, result.Items);
-};
-
-// POST /users/{userId}/photos  (expects multipart OR base64 body)
-module.exports.uploadProgressPhoto = async (event) => {
-  const { userId } = event.pathParameters;
-  const { date, angle, fileBase64, mimeType } = JSON.parse(event.body);
-  const key = `photos/${userId}/${date}/${angle}-${uuidv4()}`;
-  await s3.send(new PutObjectCommand({
-    Bucket: PHOTOS_BUCKET,
-    Key: key,
-    Body: Buffer.from(fileBase64, 'base64'),
-    ContentType: mimeType || 'image/jpeg',
-  }));
-  const photoUrl = `https://${PHOTOS_BUCKET}.s3.amazonaws.com/${key}`;
-  const item = { userId, date, angle, photoUrl, id: uuidv4(), createdAt: new Date().toISOString() };
-  await ddb.send(new PutCommand({ TableName: PHOTOS_TABLE, Item: item }));
-  return respond(201, item);
-};
-
-// DELETE /users/{userId}/photos/{photoId}
-module.exports.deleteProgressPhoto = async (event) => {
-  const { userId, photoId } = event.pathParameters;
-  await ddb.send(new DeleteCommand({ TableName: PHOTOS_TABLE, Key: { userId, id: photoId } }));
-  return respond(204, {});
-};
-
-// ── helpers ───────────────────────────────────────────────────────────────────
-function respond(statusCode, body) {
-  return {
-    statusCode,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-    body: JSON.stringify(body),
-  };
-}
---- END: src/backend/functions/progress/handler.js ---
-
---- START: src/backend/functions/users/handler.js ---
-/* eslint-disable no-undef */
-/**
- * backend/functions/users/handler.js
- * AWS Lambda handlers for User Profile operations.
- * Phase 2: wire these to API Gateway routes in serverless.yml
- *
- * DynamoDB Table: fitops-user-profiles
- * Partition key: userId (String)
- */
-
-const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
-
-const client = new DynamoDBClient({});
-const ddb = DynamoDBDocumentClient.from(client);
-const TABLE = process.env.PROFILES_TABLE || 'fitops-user-profiles';
-
-// GET /users/{userId}/profile
-module.exports.getProfile = async (event) => {
-  const { userId } = event.pathParameters;
-  const result = await ddb.send(new GetCommand({ TableName: TABLE, Key: { userId } }));
-  if (!result.Item) return respond(404, { message: 'Profile not found' });
-  return respond(200, result.Item);
-};
-
-// PUT /users/{userId}/profile  (upsert)
-module.exports.upsertProfile = async (event) => {
-  const { userId } = event.pathParameters;
-  const body = JSON.parse(event.body);
-  const item = { ...body, userId, updatedAt: new Date().toISOString() };
-  await ddb.send(new PutCommand({ TableName: TABLE, Item: item }));
-  return respond(200, item);
-};
-
-// ── helpers ──────────────────────────────────────────────────────────────────
-function respond(statusCode, body) {
-  return {
-    statusCode,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-    body: JSON.stringify(body),
-  };
-}
---- END: src/backend/functions/users/handler.js ---
-
---- START: src/backend/functions/ai/handler.js ---
-/* eslint-disable no-undef */
-/**
- * backend/functions/ai/handler.js
- * AWS Lambda handler for AI Recommendations.
- * Phase 2: replace stub logic with calls to AWS Bedrock / OpenAI via Step Functions.
- *
- * DynamoDB Table: fitops-ai-recommendations
- * Partition key: userId (String)
- */
-
-const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, GetCommand, PutCommand } = require('@aws-sdk/lib-dynamodb');
-
-const client = new DynamoDBClient({});
-const ddb = DynamoDBDocumentClient.from(client);
-const TABLE = process.env.AI_TABLE || 'fitops-ai-recommendations';
-
-// GET /users/{userId}/insights
-module.exports.getRecommendation = async (event) => {
-  const { userId } = event.pathParameters;
-  const result = await ddb.send(new GetCommand({ TableName: TABLE, Key: { userId } }));
-  if (!result.Item) return respond(404, { message: 'No insights yet' });
-  return respond(200, result.Item);
-};
-
-// POST /users/{userId}/insights/generate
-module.exports.requestAnalysis = async (event) => {
-  const { userId } = event.pathParameters;
-  const { profile, weightLogs = [], measurementLogs = [] } = JSON.parse(event.body);
-
-  // ── Phase 1: stub logic (mirrors frontend aiService.js) ──────────────────
-  const heightM = profile.heightCm / 100;
-  const bmi = Math.round((profile.startingWeightKg / (heightM * heightM)) * 10) / 10;
-  let bmiCategory = 'Normal weight';
-  if (bmi < 18.5) bmiCategory = 'Underweight';
-  else if (bmi >= 25 && bmi < 30) bmiCategory = 'Overweight';
-  else if (bmi >= 30) bmiCategory = 'Obese';
-
-  const logsCount = weightLogs.length + measurementLogs.length;
-
-  const item = {
-    userId,
-    generatedAt: new Date().toISOString(),
-    status: 'stub',
-    bmiAnalysis: `Your BMI is ${bmi} (${bmiCategory}). [Phase 2: Bedrock AI analysis here]`,
-    fitnessPath: `Structured plan for goal: ${profile.primaryGoal?.replace('_', ' ')}. [Phase 2: personalized path here]`,
-    mealGuidance: `Calorie target based on profile & activity. [Phase 2: personalized meal plan here]`,
-    workoutPlan: `${profile.activityLevel} activity → 3–5 sessions/week recommended. [Phase 2: personalized plan here]`,
-    progressInsights: `${logsCount} total entries logged. [Phase 2: trend analysis here]`,
-  };
-
-  // ── Phase 2: replace above block with ──────────────────────────────────────
-  // const sfn = new SFNClient({});
-  // await sfn.send(new StartExecutionCommand({ stateMachineArn: process.env.AI_STATE_MACHINE_ARN, input: JSON.stringify({ userId, profile }) }));
-  // return respond(202, { message: 'Analysis started' });
-  // ─────────────────────────────────────────────────────────────────────────
-
-  await ddb.send(new PutCommand({ TableName: TABLE, Item: item }));
-  return respond(200, item);
-};
-
-function respond(statusCode, body) {
-  return {
-    statusCode,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-    body: JSON.stringify(body),
-  };
-}
---- END: src/backend/functions/ai/handler.js ---
 
 --- START: src/frontend/API_CONTRACT.md ---
 # FitOps Frontend — API Contract
