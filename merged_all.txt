@@ -222,910 +222,6 @@ echo "   $REPORT_FILE"
 echo
 --- END: base44-audit.sh ---
 
---- START: components.json ---
-{
-  "$schema": "https://ui.shadcn.com/schema.json",
-  "style": "new-york",
-  "rsc": false,
-  "tsx": false,
-  "tailwind": {
-    "config": "tailwind.config.js",
-    "css": "src/index.css",
-    "baseColor": "neutral",
-    "cssVariables": true,
-    "prefix": ""
-  },
-  "aliases": {
-    "components": "@/components",
-    "utils": "@/lib/utils",
-    "ui": "@/components/ui",
-    "lib": "@/lib",
-    "hooks": "@/hooks"
-  },
-  "iconLibrary": "lucide"
-}
---- END: components.json ---
-
---- START: eslint.config.js ---
-import globals from "globals";
-import pluginJs from "@eslint/js";
-import pluginReact from "eslint-plugin-react";
-import pluginReactHooks from "eslint-plugin-react-hooks";
-import pluginUnusedImports from "eslint-plugin-unused-imports";
-
-export default [
-  {
-    files: [
-      "src/components/**/*.{js,mjs,cjs,jsx}",
-      "src/pages/**/*.{js,mjs,cjs,jsx}",
-      "src/Layout.jsx",
-    ],
-    ignores: ["src/lib/**/*", "src/components/ui/**/*"],
-    ...pluginJs.configs.recommended,
-    ...pluginReact.configs.flat.recommended,
-    languageOptions: {
-      globals: globals.browser,
-      parserOptions: {
-        ecmaVersion: 2022,
-        sourceType: "module",
-        ecmaFeatures: {
-          jsx: true,
-        },
-      },
-    },
-    settings: {
-      react: {
-        version: "detect",
-      },
-    },
-    plugins: {
-      react: pluginReact,
-      "react-hooks": pluginReactHooks,
-      "unused-imports": pluginUnusedImports,
-    },
-    rules: {
-      "no-unused-vars": "off",
-      "react/jsx-uses-vars": "error",
-      "react/jsx-uses-react": "error",
-      "unused-imports/no-unused-imports": "error",
-      "unused-imports/no-unused-vars": [
-        "warn",
-        {
-          vars: "all",
-          varsIgnorePattern: "^_",
-          args: "after-used",
-          argsIgnorePattern: "^_",
-        },
-      ],
-      "react/prop-types": "off",
-      "react/react-in-jsx-scope": "off",
-      "react/no-unknown-property": [
-        "error",
-        { ignore: ["cmdk-input-wrapper", "toast-close"] },
-      ],
-      "react-hooks/rules-of-hooks": "error",
-    },
-  },
-];
---- END: eslint.config.js ---
-
---- START: fitops_migration_plan.md ---
-# FitOps Migration Plan — From Base44 Prototype to AWS-Native App
-
-## 1. Big Picture
-
-FitOps started as a Base44-generated application, but the goal is to gradually turn it into a fully owned, production-style AWS project.
-
-The target architecture is:
-
-```text
-React/Vite Frontend
-    ↓ build
-S3 Static Website + CloudFront
-    ↓ HTTPS
-API Gateway
-    ↓
-AWS Lambda Backend
-    ↓
-DynamoDB + S3
-    ↓
-OpenAI / AI Agent workflow for insights
-```
-
-The main idea is not to rewrite everything at once.
-
-The correct approach is to keep the working React application, understand its structure, isolate Base44 dependencies, and replace them gradually with our own AWS backend.
-
----
-
-## 2. Current State
-
-The current project has several important parts:
-
-### Frontend
-
-The frontend is a React/Vite application.
-
-Main folders:
-
-```text
-src/pages/
-src/components/
-src/lib/
-src/api/
-src/App.jsx
-src/main.jsx
-```
-
-These files run in the browser and are bundled by Vite into `dist/` after running:
-
-```bash
-npm run build
-```
-
-The `dist/` folder is the final static frontend that can later be uploaded to S3 and served through CloudFront.
-
-### Current Data Layer
-
-Right now, the frontend talks to Base44 through SDK calls such as:
-
-```js
-base44.entities.UserProfile
-base44.entities.WeightLog
-base44.entities.MeasurementLog
-base44.entities.ProgressPhoto
-base44.entities.AIRecommendation
-```
-
-These calls are mostly concentrated inside the `src/api/` folder.
-
-This is good, because it means we can replace the internals of the API files without rewriting all pages and components.
-
-### Current AI Layer
-
-The project already has an AI concept:
-
-* BMI analysis
-* fitness path
-* meal guidance
-* workout plan
-* progress insights
-
-Currently, the frontend AI API uses Base44 `InvokeLLM` / stub logic.
-
-The future goal is to replace this with our own backend flow using OpenAI, probably through Lambda and possibly Step Functions / agent-like orchestration.
-
-### Backend Skeleton
-
-The project already contains an initial backend direction:
-
-```text
-backend/functions/
-backend/models/
-backend/serverless.yml
-```
-
-This backend includes Lambda handlers for:
-
-* users
-* progress
-* AI insights
-
-And model definitions for DynamoDB tables.
-
-This is useful, but we should treat it as a reference or first draft, not as final production infrastructure.
-
----
-
-## 3. Final Target
-
-The desired final project should be organized clearly:
-
-```text
-fitops/
-│
-├── frontend/
-│   ├── src/
-│   ├── public/
-│   ├── package.json
-│   ├── vite.config.js
-│   └── .env.example
-│
-├── backend/
-│   ├── functions/
-│   │   ├── users/
-│   │   ├── progress/
-│   │   └── ai/
-│   ├── package.json
-│   └── README.md
-│
-├── infra/
-│   └── terraform/
-│       ├── environments/
-│       │   └── dev/
-│       ├── modules/
-│       │   ├── frontend-s3/
-│       │   ├── api-gateway/
-│       │   ├── lambda/
-│       │   ├── dynamodb/
-│       │   ├── s3-photos/
-│       │   └── cognito/
-│       └── README.md
-│
-├── docs/
-│   ├── ARCHITECTURE.md
-│   ├── API_CONTRACT.md
-│   ├── MIGRATION_PLAN.md
-│   └── SECURITY_NOTES.md
-│
-└── README.md
-```
-
-Important: this is the target structure, not the first action. Moving files too early can break Vite aliases and imports.
-
----
-
-## 4. Core Principle: Do Not Break the Frontend
-
-The existing frontend should remain working while we migrate.
-
-The safest migration strategy:
-
-1. Keep pages and components mostly unchanged.
-2. Keep the public function signatures in `src/api/` unchanged.
-3. Replace Base44 calls inside the API files one by one.
-4. Test after each replacement.
-
-Example:
-
-Current frontend page calls:
-
-```js
-const profile = await getProfile(user.email);
-```
-
-This should stay the same.
-
-Only the inside of `getProfile()` should change later.
-
-Before:
-
-```js
-return base44.entities.UserProfile.filter({ userId });
-```
-
-After:
-
-```js
-return fetch(`${API_BASE_URL}/users/${userId}/profile`);
-```
-
-This keeps the UI stable while the backend changes underneath.
-
----
-
-## 5. Migration Phases
-
-## Phase 0 — Audit and Baseline
-
-Goal: understand what exists before changing anything.
-
-Tasks:
-
-* Confirm the project runs locally with `npm install` and `npm run dev`.
-* Confirm `npm run build` creates a valid `dist/` folder.
-* List all Base44 dependencies.
-* List all imports from `@/api/*`.
-* Understand which pages depend on which API functions.
-
-Success condition:
-
-The current app builds locally before we touch architecture.
-
----
-
-## Phase 1 — Documentation and Structure Clarity
-
-Goal: make the project understandable.
-
-Tasks:
-
-* Create/update `docs/MIGRATION_PLAN.md`.
-* Create/update `docs/ARCHITECTURE.md`.
-* Create/update `docs/API_CONTRACT.md`.
-* Create `docs/SECURITY_NOTES.md`.
-* Add a top-level README that explains:
-
-  * What the app does
-  * Current Base44 state
-  * Future AWS target
-  * How to run locally
-  * How deployment will work later
-
-Success condition:
-
-A new developer can understand the project without guessing what is frontend, backend, infra, Base44, or AWS.
-
----
-
-## Phase 2 — Frontend Isolation
-
-Goal: prepare the frontend to be deployable as a static website.
-
-Tasks:
-
-* Ensure `npm run build` works.
-* Confirm `dist/` contains only static frontend assets.
-* Confirm backend code is not imported by frontend code.
-* Prepare `.env.example`.
-* Prepare `.env.production` pattern for future API URL.
-
-Environment variables:
-
-```text
-VITE_API_BASE_URL=https://example.execute-api.region.amazonaws.com/prod
-```
-
-Success condition:
-
-The frontend can be built and theoretically uploaded to S3 without backend files leaking into the bundle.
-
----
-
-## Phase 3 — Minimal AWS Frontend Hosting
-
-Goal: deploy the static frontend first.
-
-Initial simple version:
-
-* S3 bucket for static files
-* S3 website hosting or CloudFront origin
-* Upload `dist/`
-
-Better production direction:
-
-* Private S3 bucket
-* CloudFront distribution
-* Origin Access Control
-* HTTPS with ACM later
-* React Router fallback to `index.html`
-
-Success condition:
-
-The React app loads publicly from AWS, even if it still calls Base44 behind the scenes.
-
----
-
-## Phase 4 — Minimal Backend API
-
-Goal: create one tiny backend route before migrating everything.
-
-Start with a health route:
-
-```text
-GET /health
-```
-
-Response:
-
-```json
-{
-  "status": "ok",
-  "service": "fitops-api"
-}
-```
-
-This proves:
-
-* API Gateway works
-* Lambda works
-* Terraform/serverless deployment works
-* Frontend can call the API
-
-Success condition:
-
-Frontend can call `/health` successfully through API Gateway.
-
----
-
-## Phase 5 — Move User Profile from Base44 to AWS
-
-Goal: migrate the smallest meaningful data flow.
-
-Backend:
-
-```text
-GET /users/{userId}/profile
-PUT /users/{userId}/profile
-```
-
-Database:
-
-```text
-DynamoDB table: user_profiles
-PK: userId
-```
-
-Frontend file to update:
-
-```text
-src/api/userApi.js
-```
-
-Keep the same exported functions:
-
-```js
-getProfile(userId)
-createProfile(profileData)
-updateProfile(profileId, updates)
-upsertProfile(userId, profileData)
-```
-
-But change the internals to call API Gateway instead of Base44.
-
-Success condition:
-
-Onboarding/profile data is stored in DynamoDB and loaded back into the app.
-
----
-
-## Phase 6 — Move Progress Data to AWS
-
-Goal: migrate weight logs, measurements, and photos.
-
-Backend endpoints:
-
-```text
-GET    /users/{userId}/weight
-POST   /users/{userId}/weight
-DELETE /users/{userId}/weight/{logId}
-
-GET    /users/{userId}/measurements
-POST   /users/{userId}/measurements
-DELETE /users/{userId}/measurements/{logId}
-
-GET    /users/{userId}/photos
-POST   /users/{userId}/photos
-DELETE /users/{userId}/photos/{photoId}
-```
-
-Storage:
-
-* DynamoDB for metadata
-* S3 for progress photos
-
-Security direction:
-
-* S3 bucket should not be public
-* Use presigned upload/download URLs later
-* Restrict CORS to the frontend domain
-
-Success condition:
-
-Weight, measurements, and photos no longer depend on Base44.
-
----
-
-## Phase 7 — Authentication
-
-Goal: replace Base44 auth with AWS-managed auth.
-
-Target:
-
-* Cognito User Pool
-* JWT tokens
-* API Gateway JWT authorizer
-* Frontend sends token in `Authorization` header
-
-Important security rule:
-
-The backend must not blindly trust `userId` from the URL.
-
-The Lambda should compare:
-
-```text
-userId from request path
-vs
-user identity from JWT claims
-```
-
-Success condition:
-
-A user can only access their own profile, progress logs, photos, and AI insights.
-
----
-
-## Phase 8 — AI Insights with OpenAI
-
-Goal: replace Base44 AI with our own AI backend.
-
-Initial backend flow:
-
-```text
-POST /users/{userId}/insights/generate
-    ↓
-Lambda loads profile + progress data
-    ↓
-Lambda calls OpenAI
-    ↓
-Lambda validates/structures response
-    ↓
-Lambda stores result in DynamoDB
-    ↓
-GET /users/{userId}/insights returns latest result
-```
-
-Future advanced flow:
-
-```text
-POST /insights/generate
-    ↓
-Step Functions
-    ↓
-Data Collector Lambda
-    ↓
-AI Agent / OpenAI call
-    ↓
-Validator Lambda
-    ↓
-DynamoDB save
-    ↓
-status: pending → ready
-```
-
-AI output should remain structured:
-
-```json
-{
-  "bmiAnalysis": "...",
-  "fitnessPath": "...",
-  "mealGuidance": "...",
-  "workoutPlan": "...",
-  "progressInsights": "..."
-}
-```
-
-Security requirements:
-
-* OpenAI API key must be stored in SSM Parameter Store or Secrets Manager.
-* Never expose the OpenAI API key to the frontend.
-* Add input validation.
-* Add safe health/fitness disclaimers where needed.
-* Avoid pretending to provide medical diagnosis.
-
-Success condition:
-
-AI insights are generated through our backend, saved in DynamoDB, and shown in the frontend.
-
----
-
-## Phase 9 — Terraform Infrastructure
-
-Goal: manage the AWS infrastructure using Terraform.
-
-Recommended structure:
-
-```text
-infra/terraform/
-├── environments/
-│   └── dev/
-│       ├── main.tf
-│       ├── variables.tf
-│       ├── outputs.tf
-│       ├── terraform.tfvars.example
-│       └── backend.tf
-│
-└── modules/
-    ├── frontend-s3-cloudfront/
-    ├── api-gateway/
-    ├── lambda/
-    ├── dynamodb/
-    ├── s3-photos/
-    ├── cognito/
-    └── iam/
-```
-
-Terraform principles:
-
-* Generic naming using project/env/account/region.
-* Remote state in S3.
-* DynamoDB lock table.
-* Least privilege IAM.
-* No hardcoded secrets.
-* Environment separation.
-* Outputs for frontend API URL, CloudFront URL, table names, bucket names.
-
-Success condition:
-
-The full AWS environment can be recreated from Terraform.
-
----
-
-## Phase 10 — CI/CD
-
-Goal: automate builds and deployments.
-
-Possible future setup:
-
-Frontend:
-
-```text
-GitHub Actions
-    ↓
-npm ci
-npm run build
-aws s3 sync dist/
-cloudfront invalidation
-```
-
-Backend:
-
-```text
-GitHub Actions
-    ↓
-package Lambda
-terraform plan/apply
-```
-
-Security direction:
-
-* GitHub Actions OIDC to AWS
-* No AWS keys stored in GitHub secrets
-* Separate deploy roles
-* Minimal permissions
-
-Success condition:
-
-Push to main can safely deploy frontend/backend through controlled pipelines.
-
----
-
-## 6. Base44 Dependency Removal Plan
-
-Base44 dependencies should be removed gradually.
-
-### Current Base44 touch points
-
-Likely files:
-
-```text
-src/api/base44Client.js
-src/api/userApi.js
-src/api/progressApi.js
-src/api/aiApi.js
-src/lib/AuthContext.jsx
-src/lib/useCurrentUser.js
-vite.config.js
-README.md
-```
-
-### Removal order
-
-1. Keep Base44 working while AWS skeleton is created.
-2. Replace `userApi.js`.
-3. Replace `progressApi.js`.
-4. Replace `aiApi.js`.
-5. Replace auth.
-6. Remove `base44Client.js`.
-7. Remove Base44 Vite plugin if no longer needed.
-8. Clean README and docs.
-
----
-
-## 7. Security Notes
-
-Security must be part of the architecture from the beginning.
-
-Main rules:
-
-* Frontend never accesses DynamoDB directly.
-* Frontend never contains secrets.
-* OpenAI API key stays only in backend secret storage.
-* S3 photos bucket should be private.
-* API Gateway should use JWT authorization.
-* Lambda should verify user ownership.
-* IAM permissions should be least-privilege.
-* CORS should be restricted in production.
-* Terraform state should be remote and locked.
-* Logs should not expose private user data.
-
----
-
-## 8. First Practical Checklist
-
-Before writing major code, do this:
-
-```text
-[ ] Run npm install
-[ ] Run npm run dev
-[ ] Run npm run build
-[ ] Confirm dist/ exists
-[ ] Search all Base44 references
-[ ] Search all imports from src/api
-[ ] Decide final repo structure
-[ ] Create docs folder
-[ ] Save this migration plan
-[ ] Choose first AWS target: frontend S3 or backend /health
-```
-
-Recommended first technical move:
-
-```text
-Create a clean docs/ folder and preserve this plan.
-Then verify the frontend builds.
-Only after that, start Terraform.
-```
-
----
-
-## 9. Working Style
-
-We will work step by step.
-
-No giant code dumps.
-No full rewrite before understanding.
-No moving folders without checking imports.
-No security shortcuts that become permanent.
-
-Each step should have:
-
-```text
-Goal
-Files touched
-Exact change
-How to test
-Rollback idea
-```
-
-That is how this becomes a serious portfolio-grade AWS migration project, not just another generated app.
---- END: fitops_migration_plan.md ---
-
---- START: index.html ---
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="manifest" href="/manifest.json" />
-    <title>FitOps</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
---- END: index.html ---
-
---- START: jsconfig.json ---
-{
-  "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"]
-    },
-    "jsx": "react-jsx",
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "lib": ["esnext", "dom"],
-    "target": "esnext",
-    "checkJs": true,
-    "skipLibCheck": true,
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "resolveJsonModule": true,
-    "types": []
-  },
-  "include": ["src/components/**/*.js", "src/pages/**/*.jsx", "src/Layout.jsx"],
-  "exclude": ["node_modules", "dist", "src/vite-plugins", "src/components/ui", "src/api", "src/lib"]
-}
---- END: jsconfig.json ---
-
---- START: postcss.config.js ---
-export default {
-  plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
-  },
-}
---- END: postcss.config.js ---
-
---- START: tailwind.config.js ---
-/** @type {import('tailwindcss').Config} */
-module.exports = {
-  darkMode: ["class"],
-  content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
-  theme: {
-    extend: {
-      fontFamily: {
-        inter: ['var(--font-inter)', 'sans-serif']
-      },
-      colors: {
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
-        surface: '#F5F5F7',
-        brand: '#4F6EF7',
-        'brand-light': '#EEF1FE',
-        'text-primary': '#1D1D2E',
-        card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))'
-        },
-        popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))'
-        },
-        primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))'
-        },
-        secondary: {
-          DEFAULT: 'hsl(var(--secondary))',
-          foreground: 'hsl(var(--secondary-foreground))'
-        },
-        muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))'
-        },
-        accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))'
-        },
-        destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))'
-        },
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
-      },
-      borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
-        xl: '1rem',
-        '2xl': '1.25rem'
-      },
-      boxShadow: {
-        card: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)',
-        'card-hover': '0 4px 24px rgba(79,110,247,0.12)',
-      },
-      keyframes: {
-        'accordion-down': { from: { height: '0' }, to: { height: 'var(--radix-accordion-content-height)' } },
-        'accordion-up': { from: { height: 'var(--radix-accordion-content-height)' }, to: { height: '0' } }
-      },
-      animation: {
-        'accordion-down': 'accordion-down 0.2s ease-out',
-        'accordion-up': 'accordion-up 0.2s ease-out'
-      }
-    }
-  },
-  plugins: [require("tailwindcss-animate")]
-};
---- END: tailwind.config.js ---
-
---- START: vite.config.js ---
-import base44 from "@base44/vite-plugin"
-import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
-
-// https://vite.dev/config/
-export default defineConfig({
-  logLevel: 'error', // Suppress warnings, only show errors
-  plugins: [
-    base44({
-      // Support for legacy code that imports the base44 SDK with @/integrations, @/entities, etc.
-      // can be removed if the code has been updated to use the new SDK imports from @base44/sdk
-      legacySDKImports: process.env.BASE44_LEGACY_SDK_IMPORTS === 'true',
-      hmrNotifier: true,
-      navigationNotifier: true,
-      analyticsTracker: true,
-      visualEditAgent: true
-    }),
-    react(),
-  ]
-});
---- END: vite.config.js ---
-
 --- START: backend/serverless.yml ---
 # backend/serverless.yml
 # Serverless Framework v3 configuration for FitOps backend.
@@ -1883,217 +979,254 @@ Report file:
 
 --- END: audit-reports/base44-audit-2026-05-07_18-31-37.txt ---
 
---- START: entities/AIRecommendation ---
+--- START: frontend/components.json ---
 {
-  "name": "AIRecommendation",
-  "type": "object",
-  "properties": {
-    "userId": {
-      "type": "string"
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": false,
+  "tsx": false,
+  "tailwind": {
+    "config": "tailwind.config.js",
+    "css": "src/index.css",
+    "baseColor": "neutral",
+    "cssVariables": true,
+    "prefix": ""
+  },
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils",
+    "ui": "@/components/ui",
+    "lib": "@/lib",
+    "hooks": "@/hooks"
+  },
+  "iconLibrary": "lucide"
+}
+--- END: frontend/components.json ---
+
+--- START: frontend/eslint.config.js ---
+import globals from "globals";
+import pluginJs from "@eslint/js";
+import pluginReact from "eslint-plugin-react";
+import pluginReactHooks from "eslint-plugin-react-hooks";
+import pluginUnusedImports from "eslint-plugin-unused-imports";
+
+export default [
+  {
+    files: [
+      "src/components/**/*.{js,mjs,cjs,jsx}",
+      "src/pages/**/*.{js,mjs,cjs,jsx}",
+      "src/Layout.jsx",
+    ],
+    ignores: ["src/lib/**/*", "src/components/ui/**/*"],
+    ...pluginJs.configs.recommended,
+    ...pluginReact.configs.flat.recommended,
+    languageOptions: {
+      globals: globals.browser,
+      parserOptions: {
+        ecmaVersion: 2022,
+        sourceType: "module",
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
     },
-    "generatedAt": {
-      "type": "string",
-      "format": "date-time"
+    settings: {
+      react: {
+        version: "detect",
+      },
     },
-    "bmiAnalysis": {
-      "type": "string"
+    plugins: {
+      react: pluginReact,
+      "react-hooks": pluginReactHooks,
+      "unused-imports": pluginUnusedImports,
     },
-    "fitnessPath": {
-      "type": "string"
-    },
-    "mealGuidance": {
-      "type": "string"
-    },
-    "workoutPlan": {
-      "type": "string"
-    },
-    "progressInsights": {
-      "type": "string"
-    },
-    "status": {
-      "type": "string",
-      "enum": [
-        "stub",
-        "pending",
-        "ready"
+    rules: {
+      "no-unused-vars": "off",
+      "react/jsx-uses-vars": "error",
+      "react/jsx-uses-react": "error",
+      "unused-imports/no-unused-imports": "error",
+      "unused-imports/no-unused-vars": [
+        "warn",
+        {
+          vars: "all",
+          varsIgnorePattern: "^_",
+          args: "after-used",
+          argsIgnorePattern: "^_",
+        },
       ],
-      "default": "stub"
-    }
+      "react/prop-types": "off",
+      "react/react-in-jsx-scope": "off",
+      "react/no-unknown-property": [
+        "error",
+        { ignore: ["cmdk-input-wrapper", "toast-close"] },
+      ],
+      "react-hooks/rules-of-hooks": "error",
+    },
   },
-  "required": [
-    "userId",
-    "status"
-  ]
-}
---- END: entities/AIRecommendation ---
+];
+--- END: frontend/eslint.config.js ---
 
---- START: entities/MeasurementLog ---
+--- START: frontend/index.html ---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="manifest" href="/manifest.json" />
+    <title>FitOps</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+--- END: frontend/index.html ---
+
+--- START: frontend/jsconfig.json ---
 {
-  "name": "MeasurementLog",
-  "type": "object",
-  "properties": {
-    "userId": {
-      "type": "string"
+  "compilerOptions": {
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "@/*": ["./src/*"]
     },
-    "date": {
-      "type": "string",
-      "format": "date"
-    },
-    "neck": {
-      "type": "number"
-    },
-    "chest": {
-      "type": "number"
-    },
-    "waist": {
-      "type": "number"
-    },
-    "hips": {
-      "type": "number"
-    },
-    "leftArm": {
-      "type": "number"
-    },
-    "rightArm": {
-      "type": "number"
-    },
-    "leftThigh": {
-      "type": "number"
-    },
-    "rightThigh": {
-      "type": "number"
-    }
+    "jsx": "react-jsx",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["esnext", "dom"],
+    "target": "esnext",
+    "checkJs": true,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "types": []
   },
-  "required": [
-    "userId",
-    "date"
+  "include": [
+    "src/components/**/*.js",
+    "src/pages/**/*.jsx",
+    "src/Layout.jsx",
+    "src/App.jsx",
+    "src/main.jsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/vite-plugins",
+    "src/components/ui",
+    "src/api",
+    "src/lib"
   ]
 }
---- END: entities/MeasurementLog ---
+--- END: frontend/jsconfig.json ---
 
---- START: entities/ProgressPhoto ---
-{
-  "name": "ProgressPhoto",
-  "type": "object",
-  "properties": {
-    "userId": {
-      "type": "string"
-    },
-    "date": {
-      "type": "string",
-      "format": "date"
-    },
-    "angle": {
-      "type": "string",
-      "enum": [
-        "front",
-        "side",
-        "back"
-      ]
-    },
-    "photoUrl": {
-      "type": "string",
-      "description": "URL from file upload service"
+--- START: frontend/postcss.config.js ---
+export default {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+}
+--- END: frontend/postcss.config.js ---
+
+--- START: frontend/tailwind.config.js ---
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  darkMode: ["class"],
+  content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
+  theme: {
+    extend: {
+      fontFamily: {
+        inter: ['var(--font-inter)', 'sans-serif']
+      },
+      colors: {
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        surface: '#F5F5F7',
+        brand: '#4F6EF7',
+        'brand-light': '#EEF1FE',
+        'text-primary': '#1D1D2E',
+        card: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))'
+        },
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))'
+        },
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))'
+        },
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))'
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))'
+        },
+        accent: {
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))'
+        },
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))'
+        },
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+      },
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+        xl: '1rem',
+        '2xl': '1.25rem'
+      },
+      boxShadow: {
+        card: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)',
+        'card-hover': '0 4px 24px rgba(79,110,247,0.12)',
+      },
+      keyframes: {
+        'accordion-down': { from: { height: '0' }, to: { height: 'var(--radix-accordion-content-height)' } },
+        'accordion-up': { from: { height: 'var(--radix-accordion-content-height)' }, to: { height: '0' } }
+      },
+      animation: {
+        'accordion-down': 'accordion-down 0.2s ease-out',
+        'accordion-up': 'accordion-up 0.2s ease-out'
+      }
     }
   },
-  "required": [
-    "userId",
-    "date",
-    "angle",
-    "photoUrl"
-  ]
-}
---- END: entities/ProgressPhoto ---
+  plugins: [require("tailwindcss-animate")]
+};
+--- END: frontend/tailwind.config.js ---
 
---- START: entities/UserProfile ---
-{
-  "name": "UserProfile",
-  "type": "object",
-  "properties": {
-    "userId": {
-      "type": "string",
-      "description": "Matches auth user ID \u2014 future DynamoDB partition key"
-    },
-    "name": {
-      "type": "string"
-    },
-    "age": {
-      "type": "number"
-    },
-    "sex": {
-      "type": "string",
-      "enum": [
-        "male",
-        "female",
-        "other"
-      ]
-    },
-    "heightCm": {
-      "type": "number"
-    },
-    "startingWeightKg": {
-      "type": "number"
-    },
-    "goalWeightKg": {
-      "type": "number"
-    },
-    "activityLevel": {
-      "type": "string",
-      "enum": [
-        "sedentary",
-        "light",
-        "moderate",
-        "active",
-        "very_active"
-      ]
-    },
-    "primaryGoal": {
-      "type": "string",
-      "enum": [
-        "lose_weight",
-        "maintain_weight",
-        "build_muscle",
-        "improve_fitness"
-      ]
-    },
-    "startDate": {
-      "type": "string",
-      "format": "date"
-    }
-  },
-  "required": [
-    "userId",
-    "name"
-  ]
-}
---- END: entities/UserProfile ---
+--- START: frontend/vite.config.js ---
+import base44 from "@base44/vite-plugin"
+import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite'
 
---- START: entities/WeightLog ---
-{
-  "name": "WeightLog",
-  "type": "object",
-  "properties": {
-    "userId": {
-      "type": "string",
-      "description": "Partition key in DynamoDB"
-    },
-    "date": {
-      "type": "string",
-      "format": "date"
-    },
-    "weightKg": {
-      "type": "number"
-    }
-  },
-  "required": [
-    "userId",
-    "date",
-    "weightKg"
+// https://vite.dev/config/
+export default defineConfig({
+  logLevel: 'error', // Suppress warnings, only show errors
+  plugins: [
+    base44({
+      // Support for legacy code that imports the base44 SDK with @/integrations, @/entities, etc.
+      // can be removed if the code has been updated to use the new SDK imports from @base44/sdk
+      legacySDKImports: process.env.BASE44_LEGACY_SDK_IMPORTS === 'true',
+      hmrNotifier: true,
+      navigationNotifier: true,
+      analyticsTracker: true,
+      visualEditAgent: true
+    }),
+    react(),
   ]
-}
---- END: entities/WeightLog ---
+});
+--- END: frontend/vite.config.js ---
 
---- START: src/ARCHITECTURE.md ---
+--- START: frontend/src/ARCHITECTURE.md ---
 # FitOps — Architecture & Separation of Concerns
 
 ## TL;DR
@@ -2215,9 +1348,9 @@ The only communication is HTTP via API Gateway.
 4. `npm run build` → `aws s3 sync dist/ s3://fitops-frontend --delete`
 
 5. Auth: wire AWS Cognito JWT tokens into the `Authorization` header of each fetch call.
---- END: src/ARCHITECTURE.md ---
+--- END: frontend/src/ARCHITECTURE.md ---
 
---- START: src/App.jsx ---
+--- START: frontend/src/App.jsx ---
 import { Toaster } from "@/components/ui/toaster";
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClientInstance } from '@/lib/query-client';
@@ -2268,9 +1401,9 @@ function App() {
 }
 
 export default App;
---- END: src/App.jsx ---
+--- END: frontend/src/App.jsx ---
 
---- START: src/README.md ---
+--- START: frontend/src/README.md ---
 # FitOps
 
 Body tracking app with AI insights. Built on Base44 (Phase 1), designed for AWS migration (Phase 2).
@@ -2361,9 +1494,9 @@ See `frontend/API_CONTRACT.md` for full migration checklist.
 
 - Phase 1: Base44 auth (email/Google)
 - Phase 2: AWS Cognito User Pool → JWT authorizer on API Gateway
---- END: src/README.md ---
+--- END: frontend/src/README.md ---
 
---- START: src/index.css ---
+--- START: frontend/src/index.css ---
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
@@ -2407,9 +1540,9 @@ See `frontend/API_CONTRACT.md` for full migration checklist.
     font-family: 'Inter', sans-serif;
   }
 }
---- END: src/index.css ---
+--- END: frontend/src/index.css ---
 
---- START: src/main.jsx ---
+--- START: frontend/src/main.jsx ---
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from '@/App.jsx'
@@ -2418,9 +1551,9 @@ import '@/index.css'
 ReactDOM.createRoot(document.getElementById('root')).render(
   <App />
 )
---- END: src/main.jsx ---
+--- END: frontend/src/main.jsx ---
 
---- START: src/frontend/API_CONTRACT.md ---
+--- START: frontend/src/frontend/API_CONTRACT.md ---
 # FitOps Frontend — API Contract
 
 This document defines the HTTP API that the frontend expects from the backend.
@@ -2482,9 +1615,9 @@ Set this in `.env.production` before building the S3/CloudFront bundle.
 - [ ] Create CloudFront distribution pointing to S3 bucket
 - [ ] Set `index.html` as both origin and error document (for React Router SPA)
 - [ ] Add Cognito User Pool → wire JWT authorizer in `serverless.yml
---- END: src/frontend/API_CONTRACT.md ---
+--- END: frontend/src/frontend/API_CONTRACT.md ---
 
---- START: src/lib/AuthContext.jsx ---
+--- START: frontend/src/lib/AuthContext.jsx ---
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
@@ -2645,9 +1778,9 @@ export const useAuth = () => {
   }
   return context;
 };
---- END: src/lib/AuthContext.jsx ---
+--- END: frontend/src/lib/AuthContext.jsx ---
 
---- START: src/lib/PageNotFound.jsx ---
+--- START: frontend/src/lib/PageNotFound.jsx ---
 import { useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
@@ -2723,9 +1856,9 @@ export default function PageNotFound({}) {
         </div>
     )
 }
---- END: src/lib/PageNotFound.jsx ---
+--- END: frontend/src/lib/PageNotFound.jsx ---
 
---- START: src/lib/app-params.js ---
+--- START: frontend/src/lib/app-params.js ---
 const isNode = typeof window === 'undefined';
 const windowObj = isNode ? { localStorage: new Map() } : window;
 const storage = windowObj.localStorage;
@@ -2780,9 +1913,9 @@ const getAppParams = () => {
 export const appParams = {
 	...getAppParams()
 }
---- END: src/lib/app-params.js ---
+--- END: frontend/src/lib/app-params.js ---
 
---- START: src/lib/query-client.js ---
+--- START: frontend/src/lib/query-client.js ---
 import { QueryClient } from '@tanstack/react-query';
 
 
@@ -2794,9 +1927,9 @@ export const queryClientInstance = new QueryClient({
 		},
 	},
 });
---- END: src/lib/query-client.js ---
+--- END: frontend/src/lib/query-client.js ---
 
---- START: src/lib/useCurrentUser.js ---
+--- START: frontend/src/lib/useCurrentUser.js ---
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 
@@ -2813,9 +1946,9 @@ export function useCurrentUser() {
 
   return { user, loading };
 }
---- END: src/lib/useCurrentUser.js ---
+--- END: frontend/src/lib/useCurrentUser.js ---
 
---- START: src/lib/utils.js ---
+--- START: frontend/src/lib/utils.js ---
 import { clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -2825,9 +1958,9 @@ export function cn(...inputs) {
 
 
 export const isIframe = window.self !== window.top;
---- END: src/lib/utils.js ---
+--- END: frontend/src/lib/utils.js ---
 
---- START: src/api/aiApi.js ---
+--- START: frontend/src/api/aiApi.js ---
 /**
  * api/aiApi.js — FRONTEND AI API CLIENT
  * ─────────────────────────────────────────────────────────────────────────────
@@ -2944,9 +2077,9 @@ export async function getRecommendation(userId) {
   const results = await base44.entities.AIRecommendation.filter({ userId });
   return results[0] || null;
 }
---- END: src/api/aiApi.js ---
+--- END: frontend/src/api/aiApi.js ---
 
---- START: src/api/base44Client.js ---
+--- START: frontend/src/api/base44Client.js ---
 import { createClient } from '@base44/sdk';
 import { appParams } from '@/lib/app-params';
 
@@ -2961,9 +2094,9 @@ export const base44 = createClient({
   requiresAuth: false,
   appBaseUrl
 });
---- END: src/api/base44Client.js ---
+--- END: frontend/src/api/base44Client.js ---
 
---- START: src/api/progressApi.js ---
+--- START: frontend/src/api/progressApi.js ---
 /**
  * api/progressApi.js — FRONTEND API CLIENT
  * ─────────────────────────────────────────────────────────────────────────────
@@ -3027,9 +2160,9 @@ export async function uploadProgressPhoto(userId, date, angle, file) {
 export async function deleteProgressPhoto(photoId) {
   return base44.entities.ProgressPhoto.delete(photoId);
 }
---- END: src/api/progressApi.js ---
+--- END: frontend/src/api/progressApi.js ---
 
---- START: src/api/userApi.js ---
+--- START: frontend/src/api/userApi.js ---
 /**
  * api/userApi.js — FRONTEND API CLIENT
  * ─────────────────────────────────────────────────────────────────────────────
@@ -3062,9 +2195,9 @@ export async function upsertProfile(userId, profileData) {
   if (existing) return updateProfile(existing.id, profileData);
   return createProfile({ ...profileData, userId });
 }
---- END: src/api/userApi.js ---
+--- END: frontend/src/api/userApi.js ---
 
---- START: src/pages/Dashboard.jsx ---
+--- START: frontend/src/pages/Dashboard.jsx ---
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Scale, Target, Zap, CalendarDays, Activity, Plus, TrendingUp, Camera, BarChart2 } from 'lucide-react';
@@ -3209,9 +2342,9 @@ export default function Dashboard() {
     </div>
   );
 }
---- END: src/pages/Dashboard.jsx ---
+--- END: frontend/src/pages/Dashboard.jsx ---
 
---- START: src/pages/Insights.jsx ---
+--- START: frontend/src/pages/Insights.jsx ---
 import { useState, useEffect } from 'react';
 import { Brain, Dumbbell, Utensils, TrendingUp, Sparkles, RefreshCw, MessageCircle, ChevronRight } from 'lucide-react';
 import { useCurrentUser } from '@/lib/useCurrentUser';
@@ -3409,9 +2542,9 @@ export default function Insights() {
     </div>
   );
 }
---- END: src/pages/Insights.jsx ---
+--- END: frontend/src/pages/Insights.jsx ---
 
---- START: src/pages/Landing.jsx ---
+--- START: frontend/src/pages/Landing.jsx ---
 import { ArrowRight, CheckCircle, TrendingUp, Camera, Brain, BarChart2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
@@ -3644,9 +2777,9 @@ export default function Landing() {
     </div>
   );
 }
---- END: src/pages/Landing.jsx ---
+--- END: frontend/src/pages/Landing.jsx ---
 
---- START: src/pages/Onboarding.jsx ---
+--- START: frontend/src/pages/Onboarding.jsx ---
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCurrentUser } from '@/lib/useCurrentUser';
@@ -3832,9 +2965,9 @@ function Field({ label, children }) {
     </div>
   );
 }
---- END: src/pages/Onboarding.jsx ---
+--- END: frontend/src/pages/Onboarding.jsx ---
 
---- START: src/pages/Progress.jsx ---
+--- START: frontend/src/pages/Progress.jsx ---
 import { useState, useEffect } from 'react';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import WeightChart from '@/components/progress/WeightChart';
@@ -3885,9 +3018,9 @@ export default function Progress() {
     </div>
   );
 }
---- END: src/pages/Progress.jsx ---
+--- END: frontend/src/pages/Progress.jsx ---
 
---- START: src/pages/Settings.jsx ---
+--- START: frontend/src/pages/Settings.jsx ---
 import { useState, useEffect } from 'react';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { getProfile, upsertProfile } from '@/api/userApi';
@@ -4053,15 +3186,15 @@ function Field({ label, children }) {
     </div>
   );
 }
---- END: src/pages/Settings.jsx ---
+--- END: frontend/src/pages/Settings.jsx ---
 
---- START: src/utils/index.ts ---
+--- START: frontend/src/utils/index.ts ---
 export function createPageUrl(pageName: string) {
     return '/' + pageName.replace(/ /g, '-');
 }
---- END: src/utils/index.ts ---
+--- END: frontend/src/utils/index.ts ---
 
---- START: src/components/ProtectedRoute.jsx ---
+--- START: frontend/src/components/ProtectedRoute.jsx ---
 import { Outlet } from 'react-router-dom';
 import { useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
@@ -4095,9 +3228,9 @@ export default function ProtectedRoute() {
 
   return <Outlet />;
 }
---- END: src/components/ProtectedRoute.jsx ---
+--- END: frontend/src/components/ProtectedRoute.jsx ---
 
---- START: src/components/UserNotRegisteredError.jsx ---
+--- START: frontend/src/components/UserNotRegisteredError.jsx ---
 import React from 'react';
 
 const UserNotRegisteredError = () => {
@@ -4129,9 +3262,9 @@ const UserNotRegisteredError = () => {
 };
 
 export default UserNotRegisteredError;
---- END: src/components/UserNotRegisteredError.jsx ---
+--- END: frontend/src/components/UserNotRegisteredError.jsx ---
 
---- START: src/components/layout/AppLayout.jsx ---
+--- START: frontend/src/components/layout/AppLayout.jsx ---
 import { Outlet, NavLink, Link } from 'react-router-dom';
 import { LayoutDashboard, TrendingUp, Lightbulb, Settings, LogOut } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
@@ -4222,9 +3355,9 @@ export default function AppLayout() {
     </div>
   );
 }
---- END: src/components/layout/AppLayout.jsx ---
+--- END: frontend/src/components/layout/AppLayout.jsx ---
 
---- START: src/components/dashboard/AIInsightsCard.jsx ---
+--- START: frontend/src/components/dashboard/AIInsightsCard.jsx ---
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { X, ChevronDown } from 'lucide-react';
@@ -4389,9 +3522,9 @@ export default function AIInsightsCard({ recommendation }) {
     </div>
   );
 }
---- END: src/components/dashboard/AIInsightsCard.jsx ---
+--- END: frontend/src/components/dashboard/AIInsightsCard.jsx ---
 
---- START: src/components/dashboard/QuickLogWeight.jsx ---
+--- START: frontend/src/components/dashboard/QuickLogWeight.jsx ---
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { addWeightLog } from '@/api/progressApi';
@@ -4453,9 +3586,9 @@ export default function QuickLogWeight({ userId, onClose, onSaved }) {
     </div>
   );
 }
---- END: src/components/dashboard/QuickLogWeight.jsx ---
+--- END: frontend/src/components/dashboard/QuickLogWeight.jsx ---
 
---- START: src/components/progress/MeasurementsPanel.jsx ---
+--- START: frontend/src/components/progress/MeasurementsPanel.jsx ---
 import { useState, useEffect } from 'react';
 import { getMeasurementLogs, addMeasurementLog, deleteMeasurementLog } from '@/api/progressApi';
 import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
@@ -4572,9 +3705,9 @@ export default function MeasurementsPanel({ userId }) {
     </div>
   );
 }
---- END: src/components/progress/MeasurementsPanel.jsx ---
+--- END: frontend/src/components/progress/MeasurementsPanel.jsx ---
 
---- START: src/components/progress/PhotosPanel.jsx ---
+--- START: frontend/src/components/progress/PhotosPanel.jsx ---
 import { useState, useEffect } from 'react';
 import { getProgressPhotos, uploadProgressPhoto, deleteProgressPhoto } from '@/api/progressApi';
 import { Upload, Trash2, X } from 'lucide-react';
@@ -4720,9 +3853,9 @@ export default function PhotosPanel({ userId }) {
     </div>
   );
 }
---- END: src/components/progress/PhotosPanel.jsx ---
+--- END: frontend/src/components/progress/PhotosPanel.jsx ---
 
---- START: src/components/progress/WeightChart.jsx ---
+--- START: frontend/src/components/progress/WeightChart.jsx ---
 import { useState, useEffect } from 'react';
 import { getWeightLogs, addWeightLog, deleteWeightLog } from '@/api/progressApi';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -4829,9 +3962,9 @@ export default function WeightChart({ userId }) {
     </div>
   );
 }
---- END: src/components/progress/WeightChart.jsx ---
+--- END: frontend/src/components/progress/WeightChart.jsx ---
 
---- START: src/components/insights/ChatPanel.jsx ---
+--- START: frontend/src/components/insights/ChatPanel.jsx ---
 import { useState, useEffect, useRef } from 'react';
 import { Send, MessageCircle, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -4993,9 +4126,9 @@ export default function ChatPanel({ conversation }) {
     </div>
   );
 }
---- END: src/components/insights/ChatPanel.jsx ---
+--- END: frontend/src/components/insights/ChatPanel.jsx ---
 
---- START: src/components/insights/CoachChat.jsx ---
+--- START: frontend/src/components/insights/CoachChat.jsx ---
 import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
@@ -5082,9 +4215,9 @@ export default function CoachChat({ userId }) {
     </div>
   );
 }
---- END: src/components/insights/CoachChat.jsx ---
+--- END: frontend/src/components/insights/CoachChat.jsx ---
 
---- START: src/components/insights/ConversationSidebar.jsx ---
+--- START: frontend/src/components/insights/ConversationSidebar.jsx ---
 import { Plus, Trash2, MessageCircle, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -5146,9 +4279,9 @@ export default function ConversationSidebar({ conversations, activeId, onSelect,
     </div>
   );
 }
---- END: src/components/insights/ConversationSidebar.jsx ---
+--- END: frontend/src/components/insights/ConversationSidebar.jsx ---
 
---- START: src/components/insights/InsightCard.jsx ---
+--- START: frontend/src/components/insights/InsightCard.jsx ---
 import ReactMarkdown from 'react-markdown';
 
 const iconMap = {
@@ -5195,9 +4328,9 @@ export default function InsightCard({ icon: Icon, label, content, color }) {
     </div>
   );
 }
---- END: src/components/insights/InsightCard.jsx ---
+--- END: frontend/src/components/insights/InsightCard.jsx ---
 
---- START: src/components/ui/StatCard.jsx ---
+--- START: frontend/src/components/ui/StatCard.jsx ---
 export default function StatCard({ label, value, unit, icon: Icon, gradient, iconBg, iconColor }) {
   if (gradient) {
     return (
@@ -5235,9 +4368,9 @@ export default function StatCard({ label, value, unit, icon: Icon, gradient, ico
     </div>
   );
 }
---- END: src/components/ui/StatCard.jsx ---
+--- END: frontend/src/components/ui/StatCard.jsx ---
 
---- START: src/components/ui/accordion.jsx ---
+--- START: frontend/src/components/ui/accordion.jsx ---
 import * as React from "react"
 import * as AccordionPrimitive from "@radix-ui/react-accordion"
 import { ChevronDown } from "lucide-react"
@@ -5279,9 +4412,9 @@ const AccordionContent = React.forwardRef(({ className, children, ...props }, re
 AccordionContent.displayName = AccordionPrimitive.Content.displayName
 
 export { Accordion, AccordionItem, AccordionTrigger, AccordionContent }
---- END: src/components/ui/accordion.jsx ---
+--- END: frontend/src/components/ui/accordion.jsx ---
 
---- START: src/components/ui/alert-dialog.jsx ---
+--- START: frontend/src/components/ui/alert-dialog.jsx ---
 import * as React from "react"
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 
@@ -5379,9 +4512,9 @@ export {
   AlertDialogAction,
   AlertDialogCancel,
 }
---- END: src/components/ui/alert-dialog.jsx ---
+--- END: frontend/src/components/ui/alert-dialog.jsx ---
 
---- START: src/components/ui/alert.jsx ---
+--- START: frontend/src/components/ui/alert.jsx ---
 import * as React from "react"
 import { cva } from "class-variance-authority";
 
@@ -5429,17 +4562,17 @@ const AlertDescription = React.forwardRef(({ className, ...props }, ref) => (
 AlertDescription.displayName = "AlertDescription"
 
 export { Alert, AlertTitle, AlertDescription }
---- END: src/components/ui/alert.jsx ---
+--- END: frontend/src/components/ui/alert.jsx ---
 
---- START: src/components/ui/aspect-ratio.jsx ---
+--- START: frontend/src/components/ui/aspect-ratio.jsx ---
 import * as AspectRatioPrimitive from "@radix-ui/react-aspect-ratio"
 
 const AspectRatio = AspectRatioPrimitive.Root
 
 export { AspectRatio }
---- END: src/components/ui/aspect-ratio.jsx ---
+--- END: frontend/src/components/ui/aspect-ratio.jsx ---
 
---- START: src/components/ui/avatar.jsx ---
+--- START: frontend/src/components/ui/avatar.jsx ---
 "use client"
 
 import * as React from "react"
@@ -5475,9 +4608,9 @@ const AvatarFallback = React.forwardRef(({ className, ...props }, ref) => (
 AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName
 
 export { Avatar, AvatarImage, AvatarFallback }
---- END: src/components/ui/avatar.jsx ---
+--- END: frontend/src/components/ui/avatar.jsx ---
 
---- START: src/components/ui/badge.jsx ---
+--- START: frontend/src/components/ui/badge.jsx ---
 import * as React from "react"
 import { cva } from "class-variance-authority";
 
@@ -5512,9 +4645,9 @@ function Badge({
 }
 
 export { Badge, badgeVariants }
---- END: src/components/ui/badge.jsx ---
+--- END: frontend/src/components/ui/badge.jsx ---
 
---- START: src/components/ui/breadcrumb.jsx ---
+--- START: frontend/src/components/ui/breadcrumb.jsx ---
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { ChevronRight, MoreHorizontal } from "lucide-react"
@@ -5607,9 +4740,9 @@ export {
   BreadcrumbSeparator,
   BreadcrumbEllipsis,
 }
---- END: src/components/ui/breadcrumb.jsx ---
+--- END: frontend/src/components/ui/breadcrumb.jsx ---
 
---- START: src/components/ui/button.jsx ---
+--- START: frontend/src/components/ui/button.jsx ---
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva } from "class-variance-authority";
@@ -5658,9 +4791,9 @@ const Button = React.forwardRef(({ className, variant, size, asChild = false, ..
 Button.displayName = "Button"
 
 export { Button, buttonVariants }
---- END: src/components/ui/button.jsx ---
+--- END: frontend/src/components/ui/button.jsx ---
 
---- START: src/components/ui/calendar.jsx ---
+--- START: frontend/src/components/ui/calendar.jsx ---
 import * as React from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { DayPicker } from "react-day-picker"
@@ -5732,9 +4865,9 @@ function Calendar({
 Calendar.displayName = "Calendar"
 
 export { Calendar }
---- END: src/components/ui/calendar.jsx ---
+--- END: frontend/src/components/ui/calendar.jsx ---
 
---- START: src/components/ui/card.jsx ---
+--- START: frontend/src/components/ui/card.jsx ---
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -5785,9 +4918,9 @@ const CardFooter = React.forwardRef(({ className, ...props }, ref) => (
 CardFooter.displayName = "CardFooter"
 
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
---- END: src/components/ui/card.jsx ---
+--- END: frontend/src/components/ui/card.jsx ---
 
---- START: src/components/ui/carousel.jsx ---
+--- START: frontend/src/components/ui/carousel.jsx ---
 import * as React from "react"
 import useEmblaCarousel from "embla-carousel-react";
 import { ArrowLeft, ArrowRight } from "lucide-react"
@@ -5981,9 +5114,9 @@ const CarouselNext = React.forwardRef(({ className, variant = "outline", size = 
 CarouselNext.displayName = "CarouselNext"
 
 export { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext };
---- END: src/components/ui/carousel.jsx ---
+--- END: frontend/src/components/ui/carousel.jsx ---
 
---- START: src/components/ui/chart.jsx ---
+--- START: frontend/src/components/ui/chart.jsx ---
 "use client";
 import * as React from "react"
 import * as RechartsPrimitive from "recharts"
@@ -6293,9 +5426,9 @@ export {
   ChartLegendContent,
   ChartStyle,
 }
---- END: src/components/ui/chart.jsx ---
+--- END: frontend/src/components/ui/chart.jsx ---
 
---- START: src/components/ui/checkbox.jsx ---
+--- START: frontend/src/components/ui/checkbox.jsx ---
 import * as React from "react"
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox"
 import { Check } from "lucide-react"
@@ -6318,9 +5451,9 @@ const Checkbox = React.forwardRef(({ className, ...props }, ref) => (
 Checkbox.displayName = CheckboxPrimitive.Root.displayName
 
 export { Checkbox }
---- END: src/components/ui/checkbox.jsx ---
+--- END: frontend/src/components/ui/checkbox.jsx ---
 
---- START: src/components/ui/collapsible.jsx ---
+--- START: frontend/src/components/ui/collapsible.jsx ---
 "use client"
 
 import * as CollapsiblePrimitive from "@radix-ui/react-collapsible"
@@ -6332,9 +5465,9 @@ const CollapsibleTrigger = CollapsiblePrimitive.CollapsibleTrigger
 const CollapsibleContent = CollapsiblePrimitive.CollapsibleContent
 
 export { Collapsible, CollapsibleTrigger, CollapsibleContent }
---- END: src/components/ui/collapsible.jsx ---
+--- END: frontend/src/components/ui/collapsible.jsx ---
 
---- START: src/components/ui/command.jsx ---
+--- START: frontend/src/components/ui/command.jsx ---
 import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
 import { Search } from "lucide-react"
@@ -6451,9 +5584,9 @@ export {
   CommandShortcut,
   CommandSeparator,
 }
---- END: src/components/ui/command.jsx ---
+--- END: frontend/src/components/ui/command.jsx ---
 
---- START: src/components/ui/context-menu.jsx ---
+--- START: frontend/src/components/ui/context-menu.jsx ---
 import * as React from "react"
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu"
 import { Check, ChevronRight, Circle } from "lucide-react"
@@ -6610,9 +5743,9 @@ export {
   ContextMenuSubTrigger,
   ContextMenuRadioGroup,
 }
---- END: src/components/ui/context-menu.jsx ---
+--- END: frontend/src/components/ui/context-menu.jsx ---
 
---- START: src/components/ui/dialog.jsx ---
+--- START: frontend/src/components/ui/dialog.jsx ---
 "use client"
 
 import * as React from "react"
@@ -6709,9 +5842,9 @@ export {
   DialogTitle,
   DialogDescription,
 }
---- END: src/components/ui/dialog.jsx ---
+--- END: frontend/src/components/ui/dialog.jsx ---
 
---- START: src/components/ui/drawer.jsx ---
+--- START: frontend/src/components/ui/drawer.jsx ---
 "use client"
 
 import * as React from "react"
@@ -6804,9 +5937,9 @@ export {
   DrawerTitle,
   DrawerDescription,
 }
---- END: src/components/ui/drawer.jsx ---
+--- END: frontend/src/components/ui/drawer.jsx ---
 
---- START: src/components/ui/dropdown-menu.jsx ---
+--- START: frontend/src/components/ui/dropdown-menu.jsx ---
 import * as React from "react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
 import { Check, ChevronRight, Circle } from "lucide-react"
@@ -6963,9 +6096,9 @@ export {
   DropdownMenuSubTrigger,
   DropdownMenuRadioGroup,
 }
---- END: src/components/ui/dropdown-menu.jsx ---
+--- END: frontend/src/components/ui/dropdown-menu.jsx ---
 
---- START: src/components/ui/form.jsx ---
+--- START: frontend/src/components/ui/form.jsx ---
 "use client";
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
@@ -7100,9 +6233,9 @@ export {
   FormMessage,
   FormField,
 }
---- END: src/components/ui/form.jsx ---
+--- END: frontend/src/components/ui/form.jsx ---
 
---- START: src/components/ui/hover-card.jsx ---
+--- START: frontend/src/components/ui/hover-card.jsx ---
 "use client"
 
 import * as React from "react"
@@ -7128,9 +6261,9 @@ const HoverCardContent = React.forwardRef(({ className, align = "center", sideOf
 HoverCardContent.displayName = HoverCardPrimitive.Content.displayName
 
 export { HoverCard, HoverCardTrigger, HoverCardContent }
---- END: src/components/ui/hover-card.jsx ---
+--- END: frontend/src/components/ui/hover-card.jsx ---
 
---- START: src/components/ui/input-otp.jsx ---
+--- START: frontend/src/components/ui/input-otp.jsx ---
 import * as React from "react"
 import { OTPInput, OTPInputContext } from "input-otp"
 import { Minus } from "lucide-react"
@@ -7184,9 +6317,9 @@ const InputOTPSeparator = React.forwardRef(({ ...props }, ref) => (
 InputOTPSeparator.displayName = "InputOTPSeparator"
 
 export { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator }
---- END: src/components/ui/input-otp.jsx ---
+--- END: frontend/src/components/ui/input-otp.jsx ---
 
---- START: src/components/ui/input.jsx ---
+--- START: frontend/src/components/ui/input.jsx ---
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -7206,9 +6339,9 @@ const Input = React.forwardRef(({ className, type, ...props }, ref) => {
 Input.displayName = "Input"
 
 export { Input }
---- END: src/components/ui/input.jsx ---
+--- END: frontend/src/components/ui/input.jsx ---
 
---- START: src/components/ui/label.jsx ---
+--- START: frontend/src/components/ui/label.jsx ---
 import * as React from "react"
 import * as LabelPrimitive from "@radix-ui/react-label"
 import { cva } from "class-variance-authority";
@@ -7225,9 +6358,9 @@ const Label = React.forwardRef(({ className, ...props }, ref) => (
 Label.displayName = LabelPrimitive.Root.displayName
 
 export { Label }
---- END: src/components/ui/label.jsx ---
+--- END: frontend/src/components/ui/label.jsx ---
 
---- START: src/components/ui/menubar.jsx ---
+--- START: frontend/src/components/ui/menubar.jsx ---
 "use client"
 
 import * as React from "react"
@@ -7428,9 +6561,9 @@ export {
   MenubarSub,
   MenubarShortcut,
 }
---- END: src/components/ui/menubar.jsx ---
+--- END: frontend/src/components/ui/menubar.jsx ---
 
---- START: src/components/ui/navigation-menu.jsx ---
+--- START: frontend/src/components/ui/navigation-menu.jsx ---
 import * as React from "react"
 import * as NavigationMenuPrimitive from "@radix-ui/react-navigation-menu"
 import { cva } from "class-variance-authority"
@@ -7535,9 +6668,9 @@ export {
   NavigationMenuIndicator,
   NavigationMenuViewport,
 }
---- END: src/components/ui/navigation-menu.jsx ---
+--- END: frontend/src/components/ui/navigation-menu.jsx ---
 
---- START: src/components/ui/pagination.jsx ---
+--- START: frontend/src/components/ui/pagination.jsx ---
 import * as React from "react"
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react"
 
@@ -7638,9 +6771,9 @@ export {
   PaginationNext,
   PaginationEllipsis,
 }
---- END: src/components/ui/pagination.jsx ---
+--- END: frontend/src/components/ui/pagination.jsx ---
 
---- START: src/components/ui/popover.jsx ---
+--- START: frontend/src/components/ui/popover.jsx ---
 import * as React from "react"
 import * as PopoverPrimitive from "@radix-ui/react-popover"
 
@@ -7668,9 +6801,9 @@ const PopoverContent = React.forwardRef(({ className, align = "center", sideOffs
 PopoverContent.displayName = PopoverPrimitive.Content.displayName
 
 export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor }
---- END: src/components/ui/popover.jsx ---
+--- END: frontend/src/components/ui/popover.jsx ---
 
---- START: src/components/ui/progress.jsx ---
+--- START: frontend/src/components/ui/progress.jsx ---
 "use client"
 
 import * as React from "react"
@@ -7694,9 +6827,9 @@ const Progress = React.forwardRef(({ className, value, ...props }, ref) => (
 Progress.displayName = ProgressPrimitive.Root.displayName
 
 export { Progress }
---- END: src/components/ui/progress.jsx ---
+--- END: frontend/src/components/ui/progress.jsx ---
 
---- START: src/components/ui/radio-group.jsx ---
+--- START: frontend/src/components/ui/radio-group.jsx ---
 import * as React from "react"
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group"
 import { Circle } from "lucide-react"
@@ -7726,9 +6859,9 @@ const RadioGroupItem = React.forwardRef(({ className, ...props }, ref) => {
 RadioGroupItem.displayName = RadioGroupPrimitive.Item.displayName
 
 export { RadioGroup, RadioGroupItem }
---- END: src/components/ui/radio-group.jsx ---
+--- END: frontend/src/components/ui/radio-group.jsx ---
 
---- START: src/components/ui/resizable.jsx ---
+--- START: frontend/src/components/ui/resizable.jsx ---
 "use client"
 
 import { GripVertical } from "lucide-react"
@@ -7771,9 +6904,9 @@ const ResizableHandle = ({
 )
 
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle }
---- END: src/components/ui/resizable.jsx ---
+--- END: frontend/src/components/ui/resizable.jsx ---
 
---- START: src/components/ui/scroll-area.jsx ---
+--- START: frontend/src/components/ui/scroll-area.jsx ---
 import * as React from "react"
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
 
@@ -7812,9 +6945,9 @@ const ScrollBar = React.forwardRef(({ className, orientation = "vertical", ...pr
 ScrollBar.displayName = ScrollAreaPrimitive.ScrollAreaScrollbar.displayName
 
 export { ScrollArea, ScrollBar }
---- END: src/components/ui/scroll-area.jsx ---
+--- END: frontend/src/components/ui/scroll-area.jsx ---
 
---- START: src/components/ui/select.jsx ---
+--- START: frontend/src/components/ui/select.jsx ---
 "use client"
 
 import * as React from "react"
@@ -7936,9 +7069,9 @@ export {
   SelectScrollUpButton,
   SelectScrollDownButton,
 }
---- END: src/components/ui/select.jsx ---
+--- END: frontend/src/components/ui/select.jsx ---
 
---- START: src/components/ui/separator.jsx ---
+--- START: frontend/src/components/ui/separator.jsx ---
 import * as React from "react"
 import * as SeparatorPrimitive from "@radix-ui/react-separator"
 
@@ -7962,9 +7095,9 @@ const Separator = React.forwardRef((
 Separator.displayName = SeparatorPrimitive.Root.displayName
 
 export { Separator }
---- END: src/components/ui/separator.jsx ---
+--- END: frontend/src/components/ui/separator.jsx ---
 
---- START: src/components/ui/sheet.jsx ---
+--- START: frontend/src/components/ui/sheet.jsx ---
 "use client";
 import * as React from "react"
 import * as SheetPrimitive from "@radix-ui/react-dialog"
@@ -8074,9 +7207,9 @@ export {
   SheetTitle,
   SheetDescription,
 }
---- END: src/components/ui/sheet.jsx ---
+--- END: frontend/src/components/ui/sheet.jsx ---
 
---- START: src/components/ui/sidebar.jsx ---
+--- START: frontend/src/components/ui/sidebar.jsx ---
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva } from "class-variance-authority";
@@ -8703,9 +7836,9 @@ export {
   SidebarTrigger,
   useSidebar,
 }
---- END: src/components/ui/sidebar.jsx ---
+--- END: frontend/src/components/ui/sidebar.jsx ---
 
---- START: src/components/ui/skeleton.jsx ---
+--- START: frontend/src/components/ui/skeleton.jsx ---
 import { cn } from "@/lib/utils"
 
 function Skeleton({
@@ -8720,9 +7853,9 @@ function Skeleton({
 }
 
 export { Skeleton }
---- END: src/components/ui/skeleton.jsx ---
+--- END: frontend/src/components/ui/skeleton.jsx ---
 
---- START: src/components/ui/slider.jsx ---
+--- START: frontend/src/components/ui/slider.jsx ---
 import * as React from "react"
 import * as SliderPrimitive from "@radix-ui/react-slider"
 
@@ -8744,9 +7877,9 @@ const Slider = React.forwardRef(({ className, ...props }, ref) => (
 Slider.displayName = SliderPrimitive.Root.displayName
 
 export { Slider }
---- END: src/components/ui/slider.jsx ---
+--- END: frontend/src/components/ui/slider.jsx ---
 
---- START: src/components/ui/sonner.jsx ---
+--- START: frontend/src/components/ui/sonner.jsx ---
 "use client";
 import { useTheme } from "next-themes"
 import { Toaster as Sonner } from "sonner"
@@ -8776,9 +7909,9 @@ const Toaster = ({
 }
 
 export { Toaster }
---- END: src/components/ui/sonner.jsx ---
+--- END: frontend/src/components/ui/sonner.jsx ---
 
---- START: src/components/ui/switch.jsx ---
+--- START: frontend/src/components/ui/switch.jsx ---
 import * as React from "react"
 import * as SwitchPrimitives from "@radix-ui/react-switch"
 
@@ -8801,9 +7934,9 @@ const Switch = React.forwardRef(({ className, ...props }, ref) => (
 Switch.displayName = SwitchPrimitives.Root.displayName
 
 export { Switch }
---- END: src/components/ui/switch.jsx ---
+--- END: frontend/src/components/ui/switch.jsx ---
 
---- START: src/components/ui/table.jsx ---
+--- START: frontend/src/components/ui/table.jsx ---
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -8890,9 +8023,9 @@ export {
   TableCell,
   TableCaption,
 }
---- END: src/components/ui/table.jsx ---
+--- END: frontend/src/components/ui/table.jsx ---
 
---- START: src/components/ui/tabs.jsx ---
+--- START: frontend/src/components/ui/tabs.jsx ---
 import * as React from "react"
 import * as TabsPrimitive from "@radix-ui/react-tabs"
 
@@ -8934,9 +8067,9 @@ const TabsContent = React.forwardRef(({ className, ...props }, ref) => (
 TabsContent.displayName = TabsPrimitive.Content.displayName
 
 export { Tabs, TabsList, TabsTrigger, TabsContent }
---- END: src/components/ui/tabs.jsx ---
+--- END: frontend/src/components/ui/tabs.jsx ---
 
---- START: src/components/ui/textarea.jsx ---
+--- START: frontend/src/components/ui/textarea.jsx ---
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -8955,9 +8088,9 @@ const Textarea = React.forwardRef(({ className, ...props }, ref) => {
 Textarea.displayName = "Textarea"
 
 export { Textarea }
---- END: src/components/ui/textarea.jsx ---
+--- END: frontend/src/components/ui/textarea.jsx ---
 
---- START: src/components/ui/toast.jsx ---
+--- START: frontend/src/components/ui/toast.jsx ---
 import * as React from "react";
 import { cva } from "class-variance-authority";
 import { X } from "lucide-react";
@@ -9062,9 +8195,9 @@ export {
   ToastClose,
   ToastAction,
 }; 
---- END: src/components/ui/toast.jsx ---
+--- END: frontend/src/components/ui/toast.jsx ---
 
---- START: src/components/ui/toaster.jsx ---
+--- START: frontend/src/components/ui/toaster.jsx ---
 import { useToast } from "@/components/ui/use-toast";
 import {
   Toast,
@@ -9098,9 +8231,9 @@ export function Toaster() {
     </ToastProvider>
   );
 } 
---- END: src/components/ui/toaster.jsx ---
+--- END: frontend/src/components/ui/toaster.jsx ---
 
---- START: src/components/ui/toggle-group.jsx ---
+--- START: frontend/src/components/ui/toggle-group.jsx ---
 "use client";
 import * as React from "react"
 import * as ToggleGroupPrimitive from "@radix-ui/react-toggle-group"
@@ -9145,9 +8278,9 @@ const ToggleGroupItem = React.forwardRef(({ className, children, variant, size, 
 ToggleGroupItem.displayName = ToggleGroupPrimitive.Item.displayName
 
 export { ToggleGroup, ToggleGroupItem }
---- END: src/components/ui/toggle-group.jsx ---
+--- END: frontend/src/components/ui/toggle-group.jsx ---
 
---- START: src/components/ui/toggle.jsx ---
+--- START: frontend/src/components/ui/toggle.jsx ---
 import * as React from "react"
 import * as TogglePrimitive from "@radix-ui/react-toggle"
 import { cva } from "class-variance-authority";
@@ -9186,9 +8319,9 @@ const Toggle = React.forwardRef(({ className, variant, size, ...props }, ref) =>
 Toggle.displayName = TogglePrimitive.Root.displayName
 
 export { Toggle, toggleVariants }
---- END: src/components/ui/toggle.jsx ---
+--- END: frontend/src/components/ui/toggle.jsx ---
 
---- START: src/components/ui/tooltip.jsx ---
+--- START: frontend/src/components/ui/tooltip.jsx ---
 "use client"
 
 import * as React from "react"
@@ -9217,9 +8350,9 @@ const TooltipContent = React.forwardRef(({ className, sideOffset = 4, ...props }
 TooltipContent.displayName = TooltipPrimitive.Content.displayName
 
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
---- END: src/components/ui/tooltip.jsx ---
+--- END: frontend/src/components/ui/tooltip.jsx ---
 
---- START: src/components/ui/use-toast.jsx ---
+--- START: frontend/src/components/ui/use-toast.jsx ---
 // Inspired by react-hot-toast library
 import { useState, useEffect } from "react";
 
@@ -9384,9 +8517,9 @@ function useToast() {
 }
 
 export { useToast, toast }; 
---- END: src/components/ui/use-toast.jsx ---
+--- END: frontend/src/components/ui/use-toast.jsx ---
 
---- START: src/hooks/use-mobile.jsx ---
+--- START: frontend/src/hooks/use-mobile.jsx ---
 import * as React from "react"
 
 const MOBILE_BREAKPOINT = 768
@@ -9406,4 +8539,885 @@ export function useIsMobile() {
 
   return !!isMobile
 }
---- END: src/hooks/use-mobile.jsx ---
+--- END: frontend/src/hooks/use-mobile.jsx ---
+
+--- START: entities/AIRecommendation ---
+{
+  "name": "AIRecommendation",
+  "type": "object",
+  "properties": {
+    "userId": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "bmiAnalysis": {
+      "type": "string"
+    },
+    "fitnessPath": {
+      "type": "string"
+    },
+    "mealGuidance": {
+      "type": "string"
+    },
+    "workoutPlan": {
+      "type": "string"
+    },
+    "progressInsights": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "stub",
+        "pending",
+        "ready"
+      ],
+      "default": "stub"
+    }
+  },
+  "required": [
+    "userId",
+    "status"
+  ]
+}
+--- END: entities/AIRecommendation ---
+
+--- START: entities/MeasurementLog ---
+{
+  "name": "MeasurementLog",
+  "type": "object",
+  "properties": {
+    "userId": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "neck": {
+      "type": "number"
+    },
+    "chest": {
+      "type": "number"
+    },
+    "waist": {
+      "type": "number"
+    },
+    "hips": {
+      "type": "number"
+    },
+    "leftArm": {
+      "type": "number"
+    },
+    "rightArm": {
+      "type": "number"
+    },
+    "leftThigh": {
+      "type": "number"
+    },
+    "rightThigh": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "userId",
+    "date"
+  ]
+}
+--- END: entities/MeasurementLog ---
+
+--- START: entities/ProgressPhoto ---
+{
+  "name": "ProgressPhoto",
+  "type": "object",
+  "properties": {
+    "userId": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "angle": {
+      "type": "string",
+      "enum": [
+        "front",
+        "side",
+        "back"
+      ]
+    },
+    "photoUrl": {
+      "type": "string",
+      "description": "URL from file upload service"
+    }
+  },
+  "required": [
+    "userId",
+    "date",
+    "angle",
+    "photoUrl"
+  ]
+}
+--- END: entities/ProgressPhoto ---
+
+--- START: entities/UserProfile ---
+{
+  "name": "UserProfile",
+  "type": "object",
+  "properties": {
+    "userId": {
+      "type": "string",
+      "description": "Matches auth user ID \u2014 future DynamoDB partition key"
+    },
+    "name": {
+      "type": "string"
+    },
+    "age": {
+      "type": "number"
+    },
+    "sex": {
+      "type": "string",
+      "enum": [
+        "male",
+        "female",
+        "other"
+      ]
+    },
+    "heightCm": {
+      "type": "number"
+    },
+    "startingWeightKg": {
+      "type": "number"
+    },
+    "goalWeightKg": {
+      "type": "number"
+    },
+    "activityLevel": {
+      "type": "string",
+      "enum": [
+        "sedentary",
+        "light",
+        "moderate",
+        "active",
+        "very_active"
+      ]
+    },
+    "primaryGoal": {
+      "type": "string",
+      "enum": [
+        "lose_weight",
+        "maintain_weight",
+        "build_muscle",
+        "improve_fitness"
+      ]
+    },
+    "startDate": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "userId",
+    "name"
+  ]
+}
+--- END: entities/UserProfile ---
+
+--- START: entities/WeightLog ---
+{
+  "name": "WeightLog",
+  "type": "object",
+  "properties": {
+    "userId": {
+      "type": "string",
+      "description": "Partition key in DynamoDB"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "weightKg": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "userId",
+    "date",
+    "weightKg"
+  ]
+}
+--- END: entities/WeightLog ---
+
+--- START: docs/MIGRATION_PLAN.md ---
+# FitOps Migration Plan — From Base44 Prototype to AWS-Native App
+
+## 1. Big Picture
+
+FitOps started as a Base44-generated application, but the goal is to gradually turn it into a fully owned, production-style AWS project.
+
+The target architecture is:
+
+```text
+React/Vite Frontend
+    ↓ build
+S3 Static Website + CloudFront
+    ↓ HTTPS
+API Gateway
+    ↓
+AWS Lambda Backend
+    ↓
+DynamoDB + S3
+    ↓
+OpenAI / AI Agent workflow for insights
+```
+
+The main idea is not to rewrite everything at once.
+
+The correct approach is to keep the working React application, understand its structure, isolate Base44 dependencies, and replace them gradually with our own AWS backend.
+
+---
+
+## 2. Current State
+
+The current project has several important parts:
+
+### Frontend
+
+The frontend is a React/Vite application.
+
+Main folders:
+
+```text
+src/pages/
+src/components/
+src/lib/
+src/api/
+src/App.jsx
+src/main.jsx
+```
+
+These files run in the browser and are bundled by Vite into `dist/` after running:
+
+```bash
+npm run build
+```
+
+The `dist/` folder is the final static frontend that can later be uploaded to S3 and served through CloudFront.
+
+### Current Data Layer
+
+Right now, the frontend talks to Base44 through SDK calls such as:
+
+```js
+base44.entities.UserProfile
+base44.entities.WeightLog
+base44.entities.MeasurementLog
+base44.entities.ProgressPhoto
+base44.entities.AIRecommendation
+```
+
+These calls are mostly concentrated inside the `src/api/` folder.
+
+This is good, because it means we can replace the internals of the API files without rewriting all pages and components.
+
+### Current AI Layer
+
+The project already has an AI concept:
+
+* BMI analysis
+* fitness path
+* meal guidance
+* workout plan
+* progress insights
+
+Currently, the frontend AI API uses Base44 `InvokeLLM` / stub logic.
+
+The future goal is to replace this with our own backend flow using OpenAI, probably through Lambda and possibly Step Functions / agent-like orchestration.
+
+### Backend Skeleton
+
+The project already contains an initial backend direction:
+
+```text
+backend/functions/
+backend/models/
+backend/serverless.yml
+```
+
+This backend includes Lambda handlers for:
+
+* users
+* progress
+* AI insights
+
+And model definitions for DynamoDB tables.
+
+This is useful, but we should treat it as a reference or first draft, not as final production infrastructure.
+
+---
+
+## 3. Final Target
+
+The desired final project should be organized clearly:
+
+```text
+fitops/
+│
+├── frontend/
+│   ├── src/
+│   ├── public/
+│   ├── package.json
+│   ├── vite.config.js
+│   └── .env.example
+│
+├── backend/
+│   ├── functions/
+│   │   ├── users/
+│   │   ├── progress/
+│   │   └── ai/
+│   ├── package.json
+│   └── README.md
+│
+├── infra/
+│   └── terraform/
+│       ├── environments/
+│       │   └── dev/
+│       ├── modules/
+│       │   ├── frontend-s3/
+│       │   ├── api-gateway/
+│       │   ├── lambda/
+│       │   ├── dynamodb/
+│       │   ├── s3-photos/
+│       │   └── cognito/
+│       └── README.md
+│
+├── docs/
+│   ├── ARCHITECTURE.md
+│   ├── API_CONTRACT.md
+│   ├── MIGRATION_PLAN.md
+│   └── SECURITY_NOTES.md
+│
+└── README.md
+```
+
+Important: this is the target structure, not the first action. Moving files too early can break Vite aliases and imports.
+
+---
+
+## 4. Core Principle: Do Not Break the Frontend
+
+The existing frontend should remain working while we migrate.
+
+The safest migration strategy:
+
+1. Keep pages and components mostly unchanged.
+2. Keep the public function signatures in `src/api/` unchanged.
+3. Replace Base44 calls inside the API files one by one.
+4. Test after each replacement.
+
+Example:
+
+Current frontend page calls:
+
+```js
+const profile = await getProfile(user.email);
+```
+
+This should stay the same.
+
+Only the inside of `getProfile()` should change later.
+
+Before:
+
+```js
+return base44.entities.UserProfile.filter({ userId });
+```
+
+After:
+
+```js
+return fetch(`${API_BASE_URL}/users/${userId}/profile`);
+```
+
+This keeps the UI stable while the backend changes underneath.
+
+---
+
+## 5. Migration Phases
+
+## Phase 0 — Audit and Baseline
+
+Goal: understand what exists before changing anything.
+
+Tasks:
+
+* Confirm the project runs locally with `npm install` and `npm run dev`.
+* Confirm `npm run build` creates a valid `dist/` folder.
+* List all Base44 dependencies.
+* List all imports from `@/api/*`.
+* Understand which pages depend on which API functions.
+
+Success condition:
+
+The current app builds locally before we touch architecture.
+
+---
+
+## Phase 1 — Documentation and Structure Clarity
+
+Goal: make the project understandable.
+
+Tasks:
+
+* Create/update `docs/MIGRATION_PLAN.md`.
+* Create/update `docs/ARCHITECTURE.md`.
+* Create/update `docs/API_CONTRACT.md`.
+* Create `docs/SECURITY_NOTES.md`.
+* Add a top-level README that explains:
+
+  * What the app does
+  * Current Base44 state
+  * Future AWS target
+  * How to run locally
+  * How deployment will work later
+
+Success condition:
+
+A new developer can understand the project without guessing what is frontend, backend, infra, Base44, or AWS.
+
+---
+
+## Phase 2 — Frontend Isolation
+
+Goal: prepare the frontend to be deployable as a static website.
+
+Tasks:
+
+* Ensure `npm run build` works.
+* Confirm `dist/` contains only static frontend assets.
+* Confirm backend code is not imported by frontend code.
+* Prepare `.env.example`.
+* Prepare `.env.production` pattern for future API URL.
+
+Environment variables:
+
+```text
+VITE_API_BASE_URL=https://example.execute-api.region.amazonaws.com/prod
+```
+
+Success condition:
+
+The frontend can be built and theoretically uploaded to S3 without backend files leaking into the bundle.
+
+---
+
+## Phase 3 — Minimal AWS Frontend Hosting
+
+Goal: deploy the static frontend first.
+
+Initial simple version:
+
+* S3 bucket for static files
+* S3 website hosting or CloudFront origin
+* Upload `dist/`
+
+Better production direction:
+
+* Private S3 bucket
+* CloudFront distribution
+* Origin Access Control
+* HTTPS with ACM later
+* React Router fallback to `index.html`
+
+Success condition:
+
+The React app loads publicly from AWS, even if it still calls Base44 behind the scenes.
+
+---
+
+## Phase 4 — Minimal Backend API
+
+Goal: create one tiny backend route before migrating everything.
+
+Start with a health route:
+
+```text
+GET /health
+```
+
+Response:
+
+```json
+{
+  "status": "ok",
+  "service": "fitops-api"
+}
+```
+
+This proves:
+
+* API Gateway works
+* Lambda works
+* Terraform/serverless deployment works
+* Frontend can call the API
+
+Success condition:
+
+Frontend can call `/health` successfully through API Gateway.
+
+---
+
+## Phase 5 — Move User Profile from Base44 to AWS
+
+Goal: migrate the smallest meaningful data flow.
+
+Backend:
+
+```text
+GET /users/{userId}/profile
+PUT /users/{userId}/profile
+```
+
+Database:
+
+```text
+DynamoDB table: user_profiles
+PK: userId
+```
+
+Frontend file to update:
+
+```text
+src/api/userApi.js
+```
+
+Keep the same exported functions:
+
+```js
+getProfile(userId)
+createProfile(profileData)
+updateProfile(profileId, updates)
+upsertProfile(userId, profileData)
+```
+
+But change the internals to call API Gateway instead of Base44.
+
+Success condition:
+
+Onboarding/profile data is stored in DynamoDB and loaded back into the app.
+
+---
+
+## Phase 6 — Move Progress Data to AWS
+
+Goal: migrate weight logs, measurements, and photos.
+
+Backend endpoints:
+
+```text
+GET    /users/{userId}/weight
+POST   /users/{userId}/weight
+DELETE /users/{userId}/weight/{logId}
+
+GET    /users/{userId}/measurements
+POST   /users/{userId}/measurements
+DELETE /users/{userId}/measurements/{logId}
+
+GET    /users/{userId}/photos
+POST   /users/{userId}/photos
+DELETE /users/{userId}/photos/{photoId}
+```
+
+Storage:
+
+* DynamoDB for metadata
+* S3 for progress photos
+
+Security direction:
+
+* S3 bucket should not be public
+* Use presigned upload/download URLs later
+* Restrict CORS to the frontend domain
+
+Success condition:
+
+Weight, measurements, and photos no longer depend on Base44.
+
+---
+
+## Phase 7 — Authentication
+
+Goal: replace Base44 auth with AWS-managed auth.
+
+Target:
+
+* Cognito User Pool
+* JWT tokens
+* API Gateway JWT authorizer
+* Frontend sends token in `Authorization` header
+
+Important security rule:
+
+The backend must not blindly trust `userId` from the URL.
+
+The Lambda should compare:
+
+```text
+userId from request path
+vs
+user identity from JWT claims
+```
+
+Success condition:
+
+A user can only access their own profile, progress logs, photos, and AI insights.
+
+---
+
+## Phase 8 — AI Insights with OpenAI
+
+Goal: replace Base44 AI with our own AI backend.
+
+Initial backend flow:
+
+```text
+POST /users/{userId}/insights/generate
+    ↓
+Lambda loads profile + progress data
+    ↓
+Lambda calls OpenAI
+    ↓
+Lambda validates/structures response
+    ↓
+Lambda stores result in DynamoDB
+    ↓
+GET /users/{userId}/insights returns latest result
+```
+
+Future advanced flow:
+
+```text
+POST /insights/generate
+    ↓
+Step Functions
+    ↓
+Data Collector Lambda
+    ↓
+AI Agent / OpenAI call
+    ↓
+Validator Lambda
+    ↓
+DynamoDB save
+    ↓
+status: pending → ready
+```
+
+AI output should remain structured:
+
+```json
+{
+  "bmiAnalysis": "...",
+  "fitnessPath": "...",
+  "mealGuidance": "...",
+  "workoutPlan": "...",
+  "progressInsights": "..."
+}
+```
+
+Security requirements:
+
+* OpenAI API key must be stored in SSM Parameter Store or Secrets Manager.
+* Never expose the OpenAI API key to the frontend.
+* Add input validation.
+* Add safe health/fitness disclaimers where needed.
+* Avoid pretending to provide medical diagnosis.
+
+Success condition:
+
+AI insights are generated through our backend, saved in DynamoDB, and shown in the frontend.
+
+---
+
+## Phase 9 — Terraform Infrastructure
+
+Goal: manage the AWS infrastructure using Terraform.
+
+Recommended structure:
+
+```text
+infra/terraform/
+├── environments/
+│   └── dev/
+│       ├── main.tf
+│       ├── variables.tf
+│       ├── outputs.tf
+│       ├── terraform.tfvars.example
+│       └── backend.tf
+│
+└── modules/
+    ├── frontend-s3-cloudfront/
+    ├── api-gateway/
+    ├── lambda/
+    ├── dynamodb/
+    ├── s3-photos/
+    ├── cognito/
+    └── iam/
+```
+
+Terraform principles:
+
+* Generic naming using project/env/account/region.
+* Remote state in S3.
+* DynamoDB lock table.
+* Least privilege IAM.
+* No hardcoded secrets.
+* Environment separation.
+* Outputs for frontend API URL, CloudFront URL, table names, bucket names.
+
+Success condition:
+
+The full AWS environment can be recreated from Terraform.
+
+---
+
+## Phase 10 — CI/CD
+
+Goal: automate builds and deployments.
+
+Possible future setup:
+
+Frontend:
+
+```text
+GitHub Actions
+    ↓
+npm ci
+npm run build
+aws s3 sync dist/
+cloudfront invalidation
+```
+
+Backend:
+
+```text
+GitHub Actions
+    ↓
+package Lambda
+terraform plan/apply
+```
+
+Security direction:
+
+* GitHub Actions OIDC to AWS
+* No AWS keys stored in GitHub secrets
+* Separate deploy roles
+* Minimal permissions
+
+Success condition:
+
+Push to main can safely deploy frontend/backend through controlled pipelines.
+
+---
+
+## 6. Base44 Dependency Removal Plan
+
+Base44 dependencies should be removed gradually.
+
+### Current Base44 touch points
+
+Likely files:
+
+```text
+src/api/base44Client.js
+src/api/userApi.js
+src/api/progressApi.js
+src/api/aiApi.js
+src/lib/AuthContext.jsx
+src/lib/useCurrentUser.js
+vite.config.js
+README.md
+```
+
+### Removal order
+
+1. Keep Base44 working while AWS skeleton is created.
+2. Replace `userApi.js`.
+3. Replace `progressApi.js`.
+4. Replace `aiApi.js`.
+5. Replace auth.
+6. Remove `base44Client.js`.
+7. Remove Base44 Vite plugin if no longer needed.
+8. Clean README and docs.
+
+---
+
+## 7. Security Notes
+
+Security must be part of the architecture from the beginning.
+
+Main rules:
+
+* Frontend never accesses DynamoDB directly.
+* Frontend never contains secrets.
+* OpenAI API key stays only in backend secret storage.
+* S3 photos bucket should be private.
+* API Gateway should use JWT authorization.
+* Lambda should verify user ownership.
+* IAM permissions should be least-privilege.
+* CORS should be restricted in production.
+* Terraform state should be remote and locked.
+* Logs should not expose private user data.
+
+---
+
+## 8. First Practical Checklist
+
+Before writing major code, do this:
+
+```text
+[ ] Run npm install
+[ ] Run npm run dev
+[ ] Run npm run build
+[ ] Confirm dist/ exists
+[ ] Search all Base44 references
+[ ] Search all imports from src/api
+[ ] Decide final repo structure
+[ ] Create docs folder
+[ ] Save this migration plan
+[ ] Choose first AWS target: frontend S3 or backend /health
+```
+
+Recommended first technical move:
+
+```text
+Create a clean docs/ folder and preserve this plan.
+Then verify the frontend builds.
+Only after that, start Terraform.
+```
+
+---
+
+## 9. Working Style
+
+We will work step by step.
+
+No giant code dumps.
+No full rewrite before understanding.
+No moving folders without checking imports.
+No security shortcuts that become permanent.
+
+Each step should have:
+
+```text
+Goal
+Files touched
+Exact change
+How to test
+Rollback idea
+```
+
+That is how this becomes a serious portfolio-grade AWS migration project, not just another generated app.
+--- END: docs/MIGRATION_PLAN.md ---
