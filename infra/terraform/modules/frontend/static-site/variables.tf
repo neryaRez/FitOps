@@ -9,11 +9,7 @@ variable "name" {
 }
 
 variable "tags" {
-  type = map(string)
-
-  default = {
-    Project = "FitOps"
-    Env     = "dev"
-    Managed = "Terraform"
-  }
+  description = "Tags to apply to all resources created by this module."
+  type        = map(string)
+  default     = {}
 }

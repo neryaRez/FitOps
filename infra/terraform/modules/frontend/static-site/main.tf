@@ -36,7 +36,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "site" {
 
 resource "aws_cloudfront_origin_access_control" "site" {
   name                              = "${var.name}-oac"
-  description                       = "OAC for ${var.name} static site"
+  description                       = "Origin Access Control for ${var.name} static site"
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
   signing_protocol                  = "sigv4"
@@ -46,7 +46,7 @@ resource "aws_cloudfront_distribution" "site" {
   enabled             = true
   comment             = "${var.name} static site"
   default_root_object = "index.html"
-  price_class = "PriceClass_100"
+  price_class         = "PriceClass_100"
 
   origin {
     domain_name              = aws_s3_bucket.site.bucket_regional_domain_name
@@ -91,7 +91,8 @@ resource "aws_cloudfront_distribution" "site" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+  cloudfront_default_certificate = true
+  minimum_protocol_version       = "TLSv1.2_2021"
   }
 
   tags = var.tags
