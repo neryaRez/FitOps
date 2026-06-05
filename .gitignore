@@ -57,3 +57,5 @@ override.tf.json
 # Generated / temporary project dumps
 merged_all.txt
 audit-reports/
+infra/terraform/environments/dev/backend.tf
+
