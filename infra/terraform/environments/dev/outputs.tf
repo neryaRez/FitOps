@@ -47,3 +47,13 @@ output "progress_photos_bucket_arn" {
   description = "S3 bucket ARN for progress photos."
   value       = module.progress_photos_bucket.bucket_arn
 }
+
+output "api_endpoint" {
+  description = "HTTP API endpoint."
+  value       = module.http_api.api_endpoint
+}
+
+output "api_id" {
+  description = "HTTP API ID."
+  value       = module.http_api.api_id
+}

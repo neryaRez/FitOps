@@ -58,4 +58,5 @@ override.tf.json
 merged_all.txt
 audit-reports/
 infra/terraform/environments/dev/backend.tf
-
+infra/terraform/modules/compute/lambda_function/build/
+infra/terraform/modules/compute/lambda_function/dist/
