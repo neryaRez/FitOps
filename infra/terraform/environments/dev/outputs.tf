@@ -57,3 +57,18 @@ output "api_id" {
   description = "HTTP API ID."
   value       = module.http_api.api_id
 }
+
+output "cognito_user_pool_id" {
+  description = "Cognito User Pool ID."
+  value       = module.cognito.user_pool_id
+}
+
+output "cognito_user_pool_arn" {
+  description = "Cognito User Pool ARN."
+  value       = module.cognito.user_pool_arn
+}
+
+output "cognito_app_client_id" {
+  description = "Cognito App Client ID."
+  value       = module.cognito.app_client_id
+}
