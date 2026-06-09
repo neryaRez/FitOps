@@ -3,6 +3,11 @@ output "static_site_bucket_name" {
   value       = module.static_site.bucket_name
 }
 
+output "static_site_bucket_arn" {
+  description = "S3 bucket ARN for the static frontend site."
+  value       = module.static_site.bucket_arn
+}
+
 output "cloudfront_domain_name" {
   description = "CloudFront domain name for the frontend."
   value       = module.static_site.cloudfront_domain_name
@@ -11,6 +16,11 @@ output "cloudfront_domain_name" {
 output "cloudfront_distribution_id" {
   description = "CloudFront distribution ID."
   value       = module.static_site.cloudfront_distribution_id
+}
+
+output "cloudfront_distribution_arn" {
+  description = "CloudFront distribution ARN."
+  value       = module.static_site.cloudfront_distribution_arn
 }
 
 output "user_profiles_table_name" {
@@ -71,4 +81,14 @@ output "cognito_user_pool_arn" {
 output "cognito_app_client_id" {
   description = "Cognito App Client ID."
   value       = module.cognito.app_client_id
+}
+
+output "github_frontend_deploy_role_arn" {
+  description = "IAM role ARN used by GitHub Actions to deploy the frontend."
+  value       = module.github_frontend_deploy.role_arn
+}
+
+output "github_frontend_deploy_role_name" {
+  description = "IAM role name used by GitHub Actions to deploy the frontend."
+  value       = module.github_frontend_deploy.role_name
 }

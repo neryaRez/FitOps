@@ -1,10 +1,14 @@
+# ============================================================
 # Environment files
+# ============================================================
 .env
 .env.*
 !.env.example
 !.env.*.example
 
+# ============================================================
 # Logs
+# ============================================================
 logs/
 *.log
 npm-debug.log*
@@ -13,26 +17,38 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# ============================================================
 # Dependencies
+# ============================================================
 node_modules/
 frontend/node_modules/
 backend/node_modules/
 
+# ============================================================
 # Build outputs
+# ============================================================
 dist/
 frontend/dist/
 backend/dist/
 dist-ssr/
+build/
+frontend/build/
+backend/build/
 
+# ============================================================
 # Vite
+# ============================================================
 .vite/
 frontend/.vite/
 
+# ============================================================
 # Terraform
+# ============================================================
 **/.terraform/
 *.tfstate
 *.tfstate.*
 *.tfplan
+tfplan
 crash.log
 crash.*.log
 override.tf
@@ -40,10 +56,33 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 
+# Terraform local variable files
+infra/terraform/environments/*/terraform.tfvars
+infra/terraform/environments/*/*.auto.tfvars
+!infra/terraform/environments/*/terraform.tfvars.example
+
+# Terraform generated backend files
+infra/terraform/environments/*/backend.tf
+
+# Terraform generated module build artifacts
+infra/terraform/modules/**/build/
+infra/terraform/modules/**/dist/
+infra/terraform/modules/**/*.zip
+
+# ============================================================
+# Serverless / backend generated artifacts
+# ============================================================
+.serverless/
+backend/.serverless/
+
+# ============================================================
 # Local files
+# ============================================================
 *.local
 
+# ============================================================
 # Editor directories and files
+# ============================================================
 .vscode/*
 !.vscode/extensions.json
 .idea/
@@ -54,9 +93,8 @@ override.tf.json
 *.sln
 *.sw?
 
+# ============================================================
 # Generated / temporary project dumps
+# ============================================================
 merged_all.txt
 audit-reports/
-infra/terraform/environments/dev/backend.tf
-infra/terraform/modules/compute/lambda-function/build/
-infra/terraform/modules/compute/lambda-function/dist/
