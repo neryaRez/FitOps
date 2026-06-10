@@ -1,6 +1,6 @@
 import { Outlet, NavLink, Link } from 'react-router-dom';
 import { LayoutDashboard, TrendingUp, Lightbulb, Settings, LogOut } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { useAuth } from '@/lib/AuthContext';
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -10,7 +10,9 @@ const navItems = [
 ];
 
 export default function AppLayout() {
-  const handleLogout = () => base44.auth.logout('/');
+  const { logout } = useAuth();
+
+  const handleLogout = () => logout(true);
 
   return (
     <div className="min-h-screen flex flex-col relative" style={{ backgroundColor: '#0F0C29' }}>

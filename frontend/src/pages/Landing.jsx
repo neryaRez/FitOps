@@ -1,5 +1,5 @@
 import { ArrowRight, CheckCircle, TrendingUp, Camera, Brain, BarChart2 } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { useAuth } from '@/lib/AuthContext';
 
 const features = [
   {
@@ -44,8 +44,10 @@ const proofs = [
 ];
 
 export default function Landing() {
-  const handleLogin = () => base44.auth.redirectToLogin('/dashboard');
-  const handleSignUp = () => base44.auth.redirectToLogin('/dashboard');
+  const { navigateToLogin, navigateToSignUp } = useAuth();
+
+  const handleLogin = () => navigateToLogin('/dashboard');
+  const handleSignUp = () => navigateToSignUp('/dashboard');
 
   return (
     <div
