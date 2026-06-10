@@ -451,7 +451,7 @@ const handleAuthCallback = async () => {
   }
 };
 
-const logout = async () => {
+const logout = () => {
   localStorage.removeItem(STORAGE_KEYS.accessToken);
   localStorage.removeItem(STORAGE_KEYS.idToken);
   localStorage.removeItem(STORAGE_KEYS.refreshToken);
@@ -464,19 +464,23 @@ const logout = async () => {
   sessionStorage.removeItem(STORAGE_KEYS.oauthState);
   sessionStorage.removeItem(STORAGE_KEYS.returnTo);
 
+  localStorage.removeItem('base44_access_token');
+  localStorage.removeItem('base44_refresh_token');
+  sessionStorage.removeItem('base44_access_token');
+  sessionStorage.removeItem('base44_refresh_token');
+
   setUser(null);
   setIsAuthenticated(false);
   setAuthError(null);
   setAuthChecked(true);
+  setIsLoadingAuth(false);
 
-  const logoutParams = new URLSearchParams({
-    client_id: COGNITO_CONFIG.clientId,
-    logout_uri: COGNITO_CONFIG.logoutUri || window.location.origin
-  });
+  const logoutUrl =
+    `${COGNITO_CONFIG.hostedUiBaseUrl}/logout` +
+    `?client_id=${encodeURIComponent(COGNITO_CONFIG.clientId)}` +
+    `&logout_uri=${encodeURIComponent('https://d1vg7238260t9h.cloudfront.net')}`;
 
-  window.location.replace(
-    `${COGNITO_CONFIG.hostedUiBaseUrl}/logout?${logoutParams.toString()}`
-  );
+  window.location.href = logoutUrl;
 };
 
   const getAccessToken = async () => {

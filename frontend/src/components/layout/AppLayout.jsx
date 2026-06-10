@@ -12,8 +12,11 @@ const navItems = [
 export default function AppLayout() {
   const { logout } = useAuth();
 
-  const handleLogout = () => logout(true);
-
+  const handleLogout = (event) => {
+    event?.preventDefault?.();
+    logout();
+  };
+  
   return (
     <div className="min-h-screen flex flex-col relative" style={{ backgroundColor: '#0F0C29' }}>
       {/* Background */}
