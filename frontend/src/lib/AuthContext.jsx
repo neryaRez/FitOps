@@ -1,160 +1,567 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
-import { appParams } from '@/lib/app-params';
-import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
+
+const STORAGE_KEYS = {
+  accessToken: 'fitops_cognito_access_token',
+  idToken: 'fitops_cognito_id_token',
+  refreshToken: 'fitops_cognito_refresh_token',
+  expiresAt: 'fitops_cognito_expires_at',
+  pkceVerifier: 'fitops_cognito_pkce_verifier',
+  oauthState: 'fitops_cognito_oauth_state',
+  returnTo: 'fitops_cognito_return_to'
+};
+
+const COGNITO_CONFIG = {
+  region: import.meta.env.VITE_COGNITO_REGION,
+  userPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID,
+  clientId: import.meta.env.VITE_COGNITO_APP_CLIENT_ID,
+  hostedUiBaseUrl: import.meta.env.VITE_COGNITO_HOSTED_UI_BASE_URL,
+  redirectUri: import.meta.env.VITE_COGNITO_REDIRECT_URI,
+  logoutUri: import.meta.env.VITE_COGNITO_LOGOUT_URI,
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL
+};
+
+const OAUTH_SCOPES = ['openid', 'email', 'profile'];
+
+function assertCognitoConfig() {
+  const missing = Object.entries(COGNITO_CONFIG)
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+
+  if (missing.length > 0) {
+    throw new Error(`Missing Cognito frontend configuration: ${missing.join(', ')}`);
+  }
+}
+
+function base64UrlEncode(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+
+  return btoa(binary)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+function randomString(byteLength = 32) {
+  const bytes = new Uint8Array(byteLength);
+  crypto.getRandomValues(bytes);
+  return base64UrlEncode(bytes);
+}
+
+async function sha256(value) {
+  const data = new TextEncoder().encode(value);
+  return crypto.subtle.digest('SHA-256', data);
+}
+
+async function createPkcePair() {
+  const verifier = randomString(64);
+  const challengeBuffer = await sha256(verifier);
+  const challenge = base64UrlEncode(challengeBuffer);
+
+  return {
+    verifier,
+    challenge
+  };
+}
+
+function decodeJwt(token) {
+  if (!token) return null;
+
+  const [, payload] = token.split('.');
+
+  if (!payload) return null;
+
+  try {
+    const normalizedPayload = payload
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .padEnd(Math.ceil(payload.length / 4) * 4, '=');
+
+    const decoded = atob(normalizedPayload);
+    const json = decodeURIComponent(
+      decoded
+        .split('')
+        .map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`)
+        .join('')
+    );
+
+    return JSON.parse(json);
+  } catch (error) {
+    console.error('Failed to decode JWT:', error);
+    return null;
+  }
+}
+
+function getStoredSession() {
+  const accessToken = localStorage.getItem(STORAGE_KEYS.accessToken);
+  const idToken = localStorage.getItem(STORAGE_KEYS.idToken);
+  const refreshToken = localStorage.getItem(STORAGE_KEYS.refreshToken);
+  const expiresAtRaw = localStorage.getItem(STORAGE_KEYS.expiresAt);
+  const expiresAt = expiresAtRaw ? Number(expiresAtRaw) : null;
+
+  if (!accessToken || !idToken) {
+    return null;
+  }
+
+  return {
+    accessToken,
+    idToken,
+    refreshToken,
+    expiresAt
+  };
+}
+
+function saveSession(tokenResponse) {
+  const expiresInSeconds = Number(tokenResponse.expires_in || 3600);
+  const expiresAt = Date.now() + expiresInSeconds * 1000;
+
+  if (tokenResponse.access_token) {
+    localStorage.setItem(STORAGE_KEYS.accessToken, tokenResponse.access_token);
+  }
+
+  if (tokenResponse.id_token) {
+    localStorage.setItem(STORAGE_KEYS.idToken, tokenResponse.id_token);
+  }
+
+  if (tokenResponse.refresh_token) {
+    localStorage.setItem(STORAGE_KEYS.refreshToken, tokenResponse.refresh_token);
+  }
+
+  localStorage.setItem(STORAGE_KEYS.expiresAt, String(expiresAt));
+}
+
+function clearSession() {
+  Object.values(STORAGE_KEYS).forEach((key) => {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  });
+
+  // Cleanup leftovers from the Base44-generated app.
+  localStorage.removeItem('base44_access_token');
+  sessionStorage.removeItem('base44_access_token');
+}
+
+function isSessionExpired(session) {
+  if (!session?.expiresAt) return true;
+
+  const safetyWindowMs = 60 * 1000;
+  return Date.now() >= session.expiresAt - safetyWindowMs;
+}
+
+function buildUserFromIdToken(idToken) {
+  const claims = decodeJwt(idToken);
+
+  if (!claims) return null;
+
+  const fullName =
+    claims.name ||
+    [claims.given_name, claims.family_name].filter(Boolean).join(' ') ||
+    claims.email ||
+    'FitOps User';
+
+  return {
+    id: claims.sub,
+    userId: claims.sub,
+    sub: claims.sub,
+    email: claims.email,
+    full_name: fullName,
+    name: fullName,
+    given_name: claims.given_name,
+    family_name: claims.family_name,
+    picture: claims.picture,
+    claims
+  };
+}
+
+async function exchangeCodeForTokens(code) {
+  assertCognitoConfig();
+
+  const verifier = sessionStorage.getItem(STORAGE_KEYS.pkceVerifier);
+
+  if (!verifier) {
+    throw new Error('Missing PKCE verifier. Please login again.');
+  }
+
+  const body = new URLSearchParams({
+    grant_type: 'authorization_code',
+    client_id: COGNITO_CONFIG.clientId,
+    code,
+    redirect_uri: COGNITO_CONFIG.redirectUri,
+    code_verifier: verifier
+  });
+
+  const response = await fetch(`${COGNITO_CONFIG.hostedUiBaseUrl}/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to exchange Cognito code for tokens: ${response.status} ${text}`);
+  }
+
+  return response.json();
+}
+
+async function refreshTokens(refreshToken) {
+  assertCognitoConfig();
+
+  const body = new URLSearchParams({
+    grant_type: 'refresh_token',
+    client_id: COGNITO_CONFIG.clientId,
+    refresh_token: refreshToken
+  });
+
+  const response = await fetch(`${COGNITO_CONFIG.hostedUiBaseUrl}/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to refresh Cognito tokens: ${response.status} ${text}`);
+  }
+
+  return response.json();
+}
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
+  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(false);
   const [authError, setAuthError] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [appPublicSettings, setAppPublicSettings] = useState(null); // Contains only { id, public_settings }
+
+  // Compatibility with old Base44-generated code.
+  // We no longer load Base44 public settings.
+  const [appPublicSettings] = useState(null);
 
   useEffect(() => {
     checkAppState();
   }, []);
 
-  const checkAppState = async () => {
-    try {
-      setIsLoadingPublicSettings(true);
-      setAuthError(null);
-      
-      // First, check app public settings (with token if available)
-      // This will tell us if auth is required, user not registered, etc.
-      const appClient = createAxiosClient({
-        baseURL: `/api/apps/public`,
-        headers: {
-          'X-App-Id': appParams.appId
-        },
-        token: appParams.token, // Include token if available
-        interceptResponses: true
-      });
-      
-      try {
-        const publicSettings = await appClient.get(`/prod/public-settings/by-id/${appParams.appId}`);
-        setAppPublicSettings(publicSettings);
-        
-        // If we got the app public settings successfully, check if user is authenticated
-        if (appParams.token) {
-          await checkUserAuth();
-        } else {
-          setIsLoadingAuth(false);
-          setIsAuthenticated(false);
-          setAuthChecked(true);
-        }
-        setIsLoadingPublicSettings(false);
-      } catch (appError) {
-        console.error('App state check failed:', appError);
-        
-        // Handle app-level errors
-        if (appError.status === 403 && appError.data?.extra_data?.reason) {
-          const reason = appError.data.extra_data.reason;
-          if (reason === 'auth_required') {
-            setAuthError({
-              type: 'auth_required',
-              message: 'Authentication required'
-            });
-          } else if (reason === 'user_not_registered') {
-            setAuthError({
-              type: 'user_not_registered',
-              message: 'User not registered for this app'
-            });
-          } else {
-            setAuthError({
-              type: reason,
-              message: appError.message
-            });
-          }
-        } else {
-          setAuthError({
-            type: 'unknown',
-            message: appError.message || 'Failed to load app'
-          });
-        }
-        setIsLoadingPublicSettings(false);
-        setIsLoadingAuth(false);
-      }
-    } catch (error) {
-      console.error('Unexpected error:', error);
-      setAuthError({
-        type: 'unknown',
-        message: error.message || 'An unexpected error occurred'
-      });
-      setIsLoadingPublicSettings(false);
-      setIsLoadingAuth(false);
+  const applySessionToState = (session) => {
+    const currentUser = buildUserFromIdToken(session.idToken);
+
+    if (!currentUser) {
+      throw new Error('Could not build user from Cognito ID token.');
     }
+
+    setUser(currentUser);
+    setIsAuthenticated(true);
+    setAuthError(null);
   };
 
   const checkUserAuth = async () => {
     try {
-      // Now check if the user is authenticated
       setIsLoadingAuth(true);
-      const currentUser = await base44.auth.me();
-      setUser(currentUser);
-      setIsAuthenticated(true);
-      setIsLoadingAuth(false);
+      setAuthError(null);
+
+      let session = getStoredSession();
+
+      if (!session) {
+        setUser(null);
+        setIsAuthenticated(false);
+        setAuthChecked(true);
+        return null;
+      }
+
+      if (isSessionExpired(session)) {
+        if (!session.refreshToken) {
+          clearSession();
+          setUser(null);
+          setIsAuthenticated(false);
+          setAuthChecked(true);
+          return null;
+        }
+
+        const refreshedTokens = await refreshTokens(session.refreshToken);
+
+        saveSession({
+          ...refreshedTokens,
+          refresh_token: refreshedTokens.refresh_token || session.refreshToken
+        });
+
+        session = getStoredSession();
+      }
+
+      applySessionToState(session);
       setAuthChecked(true);
+
+      return buildUserFromIdToken(session.idToken);
     } catch (error) {
-      console.error('User auth check failed:', error);
-      setIsLoadingAuth(false);
+      console.error('Cognito auth check failed:', error);
+
+      clearSession();
+      setUser(null);
       setIsAuthenticated(false);
       setAuthChecked(true);
-      
-      // If user auth fails, it might be an expired token
-      if (error.status === 401 || error.status === 403) {
-        setAuthError({
-          type: 'auth_required',
-          message: 'Authentication required'
-        });
+      setAuthError({
+        type: 'auth_required',
+        message: error.message || 'Authentication required'
+      });
+
+      return null;
+    } finally {
+      setIsLoadingAuth(false);
+    }
+  };
+
+  const checkAppState = async () => {
+    try {
+      setIsLoadingPublicSettings(false);
+      await checkUserAuth();
+    } catch (error) {
+      console.error('Unexpected auth state error:', error);
+
+      setAuthError({
+        type: 'unknown',
+        message: error.message || 'An unexpected authentication error occurred'
+      });
+
+      setIsLoadingAuth(false);
+      setIsLoadingPublicSettings(false);
+      setAuthChecked(true);
+    }
+  };
+
+  const navigateToLogin = async (returnTo = window.location.pathname + window.location.search + window.location.hash) => {
+    try {
+      assertCognitoConfig();
+
+      const { verifier, challenge } = await createPkcePair();
+      const state = randomString(32);
+
+      sessionStorage.setItem(STORAGE_KEYS.pkceVerifier, verifier);
+      sessionStorage.setItem(STORAGE_KEYS.oauthState, state);
+      sessionStorage.setItem(STORAGE_KEYS.returnTo, returnTo || '/dashboard');
+
+      const params = new URLSearchParams({
+        client_id: COGNITO_CONFIG.clientId,
+        response_type: 'code',
+        scope: OAUTH_SCOPES.join(' '),
+        redirect_uri: COGNITO_CONFIG.redirectUri,
+        code_challenge: challenge,
+        code_challenge_method: 'S256',
+        state
+      });
+
+      window.location.assign(`${COGNITO_CONFIG.hostedUiBaseUrl}/oauth2/authorize?${params.toString()}`);
+    } catch (error) {
+      console.error('Failed to start Cognito login:', error);
+      setAuthError({
+        type: 'login_failed',
+        message: error.message || 'Failed to start login'
+      });
+    }
+  };
+
+  const navigateToSignUp = async (returnTo = '/dashboard') => {
+    try {
+      assertCognitoConfig();
+
+      const { verifier, challenge } = await createPkcePair();
+      const state = randomString(32);
+
+      sessionStorage.setItem(STORAGE_KEYS.pkceVerifier, verifier);
+      sessionStorage.setItem(STORAGE_KEYS.oauthState, state);
+      sessionStorage.setItem(STORAGE_KEYS.returnTo, returnTo || '/dashboard');
+
+      const params = new URLSearchParams({
+        client_id: COGNITO_CONFIG.clientId,
+        response_type: 'code',
+        scope: OAUTH_SCOPES.join(' '),
+        redirect_uri: COGNITO_CONFIG.redirectUri,
+        code_challenge: challenge,
+        code_challenge_method: 'S256',
+        state
+      });
+
+      window.location.assign(`${COGNITO_CONFIG.hostedUiBaseUrl}/signup?${params.toString()}`);
+    } catch (error) {
+      console.error('Failed to start Cognito signup:', error);
+      setAuthError({
+        type: 'signup_failed',
+        message: error.message || 'Failed to start signup'
+      });
+    }
+  };
+
+  const handleAuthCallback = async () => {
+    try {
+      setIsLoadingAuth(true);
+      setAuthError(null);
+
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      const state = params.get('state');
+      const error = params.get('error');
+      const errorDescription = params.get('error_description');
+
+      if (error) {
+        throw new Error(errorDescription || error);
       }
+
+      if (!code) {
+        throw new Error('Missing Cognito authorization code.');
+      }
+
+      const expectedState = sessionStorage.getItem(STORAGE_KEYS.oauthState);
+
+      if (!expectedState || expectedState !== state) {
+        throw new Error('Invalid OAuth state. Please login again.');
+      }
+
+      const tokenResponse = await exchangeCodeForTokens(code);
+      saveSession(tokenResponse);
+
+      sessionStorage.removeItem(STORAGE_KEYS.pkceVerifier);
+      sessionStorage.removeItem(STORAGE_KEYS.oauthState);
+
+      const session = getStoredSession();
+      applySessionToState(session);
+      setAuthChecked(true);
+
+      const returnTo = sessionStorage.getItem(STORAGE_KEYS.returnTo) || '/dashboard';
+      sessionStorage.removeItem(STORAGE_KEYS.returnTo);
+
+      return returnTo;
+    } catch (error) {
+      console.error('Cognito callback failed:', error);
+
+      clearSession();
+      setUser(null);
+      setIsAuthenticated(false);
+      setAuthChecked(true);
+      setAuthError({
+        type: 'callback_failed',
+        message: error.message || 'Login callback failed'
+      });
+
+      throw error;
+    } finally {
+      setIsLoadingAuth(false);
     }
   };
 
   const logout = (shouldRedirect = true) => {
+    clearSession();
+
     setUser(null);
     setIsAuthenticated(false);
-    
-    if (shouldRedirect) {
-      // Use the SDK's logout method which handles token cleanup and redirect
-      base44.auth.logout(window.location.href);
-    } else {
-      // Just remove the token without redirect
-      base44.auth.logout();
+    setAuthChecked(true);
+
+    if (!shouldRedirect) {
+      return;
+    }
+
+    try {
+      assertCognitoConfig();
+
+      const params = new URLSearchParams({
+        client_id: COGNITO_CONFIG.clientId,
+        logout_uri: COGNITO_CONFIG.logoutUri
+      });
+
+      window.location.assign(`${COGNITO_CONFIG.hostedUiBaseUrl}/logout?${params.toString()}`);
+    } catch (error) {
+      console.error('Failed to redirect to Cognito logout:', error);
+      window.location.assign('/');
     }
   };
 
-  const navigateToLogin = () => {
-    // Use the SDK's redirectToLogin method
-    base44.auth.redirectToLogin(window.location.href);
+  const getAccessToken = async () => {
+    const session = getStoredSession();
+
+    if (!session) {
+      return null;
+    }
+
+    if (!isSessionExpired(session)) {
+      return session.accessToken;
+    }
+
+    if (!session.refreshToken) {
+      clearSession();
+      return null;
+    }
+
+    const refreshedTokens = await refreshTokens(session.refreshToken);
+
+    saveSession({
+      ...refreshedTokens,
+      refresh_token: refreshedTokens.refresh_token || session.refreshToken
+    });
+
+    return localStorage.getItem(STORAGE_KEYS.accessToken);
   };
 
-  return (
-    <AuthContext.Provider value={{ 
-      user, 
-      isAuthenticated, 
+  const getAuthHeaders = async () => {
+    const accessToken = await getAccessToken();
+
+    if (!accessToken) {
+      return {};
+    }
+
+    return {
+      Authorization: `Bearer ${accessToken}`
+    };
+  };
+
+  const value = useMemo(
+    () => ({
+      user,
+      isAuthenticated,
       isLoadingAuth,
       isLoadingPublicSettings,
       authError,
       appPublicSettings,
       authChecked,
+
+      cognitoConfig: COGNITO_CONFIG,
+
       logout,
       navigateToLogin,
+      navigateToSignUp,
+      handleAuthCallback,
       checkUserAuth,
-      checkAppState
-    }}>
-      {children}
-    </AuthContext.Provider>
+      checkAppState,
+      getAccessToken,
+      getAuthHeaders
+    }),
+    [
+      user,
+      isAuthenticated,
+      isLoadingAuth,
+      isLoadingPublicSettings,
+      authError,
+      appPublicSettings,
+      authChecked
+    ]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
+
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
+
   return context;
 };

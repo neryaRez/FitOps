@@ -1,35 +1,24 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
-    "ignoreDeprecations": "6.0",
     "paths": {
       "@/*": ["./src/*"]
     },
+    "types": ["vite/client"],
     "jsx": "react-jsx",
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "lib": ["esnext", "dom"],
-    "target": "esnext",
-    "checkJs": true,
-    "skipLibCheck": true,
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "resolveJsonModule": true,
-    "types": []
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "allowJs": true,
+    "checkJs": false
   },
   "include": [
-    "src/components/**/*.js",
-    "src/pages/**/*.jsx",
-    "src/Layout.jsx",
-    "src/App.jsx",
-    "src/main.jsx"
+    "src",
+    "src/vite-env.d.ts",
+    "vite.config.js"
   ],
   "exclude": [
     "node_modules",
-    "dist",
-    "src/vite-plugins",
-    "src/components/ui",
-    "src/api",
-    "src/lib"
+    "dist"
   ]
 }

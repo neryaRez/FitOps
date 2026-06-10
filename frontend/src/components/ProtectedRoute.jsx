@@ -1,19 +1,25 @@
 import { Outlet } from 'react-router-dom';
 import { useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { useAuth } from '@/lib/AuthContext';
 
 export default function ProtectedRoute() {
-  const { isLoadingAuth, isLoadingPublicSettings, isAuthenticated, authError, navigateToLogin } = useAuth();
+  const {
+    isLoadingAuth,
+    isLoadingPublicSettings,
+    isAuthenticated,
+    authError,
+    authChecked,
+    navigateToLogin
+  } = useAuth();
 
-  const loading = isLoadingAuth || isLoadingPublicSettings;
+  const loading = isLoadingAuth || isLoadingPublicSettings || !authChecked;
 
   useEffect(() => {
     if (!loading && !isAuthenticated && !authError) {
       navigateToLogin();
     }
-  }, [loading, isAuthenticated, authError]);
+  }, [loading, isAuthenticated, authError, navigateToLogin]);
 
   if (loading) {
     return (
@@ -23,9 +29,11 @@ export default function ProtectedRoute() {
     );
   }
 
-  if (authError?.type === 'user_not_registered') return <UserNotRegisteredError />;
-  if (authError?.type === 'auth_required' || !isAuthenticated) {
-    navigateToLogin();
+  if (authError?.type === 'user_not_registered') {
+    return <UserNotRegisteredError />;
+  }
+
+  if (!isAuthenticated) {
     return null;
   }
 
