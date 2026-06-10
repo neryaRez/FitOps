@@ -451,31 +451,33 @@ const handleAuthCallback = async () => {
   }
 };
 
-  const logout = (shouldRedirect = true) => {
-    clearSession();
+const logout = async () => {
+  localStorage.removeItem(STORAGE_KEYS.accessToken);
+  localStorage.removeItem(STORAGE_KEYS.idToken);
+  localStorage.removeItem(STORAGE_KEYS.refreshToken);
+  localStorage.removeItem(STORAGE_KEYS.expiresAt);
+  localStorage.removeItem(STORAGE_KEYS.pkceVerifier);
+  localStorage.removeItem(STORAGE_KEYS.oauthState);
+  localStorage.removeItem(STORAGE_KEYS.returnTo);
 
-    setUser(null);
-    setIsAuthenticated(false);
-    setAuthChecked(true);
+  sessionStorage.removeItem(STORAGE_KEYS.pkceVerifier);
+  sessionStorage.removeItem(STORAGE_KEYS.oauthState);
+  sessionStorage.removeItem(STORAGE_KEYS.returnTo);
 
-    if (!shouldRedirect) {
-      return;
-    }
+  setUser(null);
+  setIsAuthenticated(false);
+  setAuthError(null);
+  setAuthChecked(true);
 
-    try {
-      assertCognitoConfig();
+  const logoutParams = new URLSearchParams({
+    client_id: COGNITO_CONFIG.clientId,
+    logout_uri: COGNITO_CONFIG.logoutUri || window.location.origin
+  });
 
-      const params = new URLSearchParams({
-        client_id: COGNITO_CONFIG.clientId,
-        logout_uri: COGNITO_CONFIG.logoutUri
-      });
-
-      window.location.assign(`${COGNITO_CONFIG.hostedUiBaseUrl}/logout?${params.toString()}`);
-    } catch (error) {
-      console.error('Failed to redirect to Cognito logout:', error);
-      window.location.assign('/');
-    }
-  };
+  window.location.replace(
+    `${COGNITO_CONFIG.hostedUiBaseUrl}/logout?${logoutParams.toString()}`
+  );
+};
 
   const getAccessToken = async () => {
     const session = getStoredSession();
