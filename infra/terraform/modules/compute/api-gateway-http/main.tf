@@ -16,6 +16,20 @@ resource "aws_apigatewayv2_api" "this" {
   tags = var.tags
 }
 
+resource "aws_apigatewayv2_authorizer" "jwt" {
+  count = var.jwt_authorizer == null ? 0 : 1
+
+  api_id           = aws_apigatewayv2_api.this.id
+  name             = var.jwt_authorizer.name
+  authorizer_type  = "JWT"
+  identity_sources = ["$request.header.Authorization"]
+
+  jwt_configuration {
+    issuer   = var.jwt_authorizer.issuer
+    audience = var.jwt_authorizer.audiences
+  }
+}
+
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.this.id
   name        = "$default"
@@ -39,6 +53,9 @@ resource "aws_apigatewayv2_route" "lambda" {
   api_id    = aws_apigatewayv2_api.this.id
   route_key = each.value.route_key
   target    = "integrations/${aws_apigatewayv2_integration.lambda[each.key].id}"
+
+  authorization_type = each.value.authorizer_required ? "JWT" : "NONE"
+  authorizer_id      = each.value.authorizer_required ? aws_apigatewayv2_authorizer.jwt[0].id : null
 }
 
 resource "aws_lambda_permission" "allow_apigateway" {

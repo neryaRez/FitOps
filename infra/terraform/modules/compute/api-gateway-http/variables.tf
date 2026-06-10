@@ -10,8 +10,19 @@ variable "routes" {
     lambda_invoke_arn    = string
     lambda_function_arn  = string
     lambda_function_name = string
+    authorizer_required  = optional(bool, false)
   }))
   default = {}
+}
+
+variable "jwt_authorizer" {
+  description = "Optional JWT authorizer configuration for protected routes."
+  type = object({
+    name      = string
+    issuer    = string
+    audiences = list(string)
+  })
+  default = null
 }
 
 variable "cors_allowed_origins" {
