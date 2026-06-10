@@ -182,7 +182,9 @@ function buildUserFromIdToken(idToken) {
 async function exchangeCodeForTokens(code) {
   assertCognitoConfig();
 
-  const verifier = sessionStorage.getItem(STORAGE_KEYS.pkceVerifier);
+  const verifier =
+    sessionStorage.getItem(STORAGE_KEYS.pkceVerifier) ||
+    localStorage.getItem(STORAGE_KEYS.pkceVerifier);
 
   if (!verifier) {
     throw new Error('Missing PKCE verifier. Please login again.');
@@ -349,6 +351,10 @@ export const AuthProvider = ({ children }) => {
       sessionStorage.setItem(STORAGE_KEYS.oauthState, state);
       sessionStorage.setItem(STORAGE_KEYS.returnTo, returnTo || '/dashboard');
 
+      localStorage.setItem(STORAGE_KEYS.pkceVerifier, verifier);
+      localStorage.setItem(STORAGE_KEYS.oauthState, state);
+      localStorage.setItem(STORAGE_KEYS.returnTo, returnTo || '/dashboard');
+
       const params = new URLSearchParams({
         client_id: COGNITO_CONFIG.clientId,
         response_type: 'code',
@@ -379,6 +385,10 @@ export const AuthProvider = ({ children }) => {
       sessionStorage.setItem(STORAGE_KEYS.pkceVerifier, verifier);
       sessionStorage.setItem(STORAGE_KEYS.oauthState, state);
       sessionStorage.setItem(STORAGE_KEYS.returnTo, returnTo || '/dashboard');
+
+      localStorage.setItem(STORAGE_KEYS.pkceVerifier, verifier);
+      localStorage.setItem(STORAGE_KEYS.oauthState, state);
+      localStorage.setItem(STORAGE_KEYS.returnTo, returnTo || '/dashboard');
 
       const params = new URLSearchParams({
         client_id: COGNITO_CONFIG.clientId,
@@ -419,8 +429,13 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Missing Cognito authorization code.');
       }
 
-      const expectedState = sessionStorage.getItem(STORAGE_KEYS.oauthState);
-      const pkceVerifier = sessionStorage.getItem(STORAGE_KEYS.pkceVerifier);
+      const expectedState =
+        sessionStorage.getItem(STORAGE_KEYS.oauthState) ||
+        localStorage.getItem(STORAGE_KEYS.oauthState);
+
+      const pkceVerifier =
+        sessionStorage.getItem(STORAGE_KEYS.pkceVerifier) ||
+        localStorage.getItem(STORAGE_KEYS.pkceVerifier);
 
       if (!pkceVerifier) {
         throw new Error('Missing PKCE verifier. Please login again.');
@@ -439,13 +454,20 @@ export const AuthProvider = ({ children }) => {
 
       sessionStorage.removeItem(STORAGE_KEYS.pkceVerifier);
       sessionStorage.removeItem(STORAGE_KEYS.oauthState);
+      localStorage.removeItem(STORAGE_KEYS.pkceVerifier);
+      localStorage.removeItem(STORAGE_KEYS.oauthState);
 
       const session = getStoredSession();
       applySessionToState(session);
       setAuthChecked(true);
 
-      const returnTo = sessionStorage.getItem(STORAGE_KEYS.returnTo) || '/dashboard';
+      const returnTo =
+        sessionStorage.getItem(STORAGE_KEYS.returnTo) ||
+        localStorage.getItem(STORAGE_KEYS.returnTo) ||
+        '/dashboard';
+
       sessionStorage.removeItem(STORAGE_KEYS.returnTo);
+      localStorage.removeItem(STORAGE_KEYS.returnTo);
 
       return returnTo;
     } catch (error) {
