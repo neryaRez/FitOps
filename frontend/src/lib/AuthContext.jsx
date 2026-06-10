@@ -420,9 +420,18 @@ export const AuthProvider = ({ children }) => {
       }
 
       const expectedState = sessionStorage.getItem(STORAGE_KEYS.oauthState);
+      const pkceVerifier = sessionStorage.getItem(STORAGE_KEYS.pkceVerifier);
 
-      if (!expectedState || expectedState !== state) {
+      if (!pkceVerifier) {
+        throw new Error('Missing PKCE verifier. Please login again.');
+      }
+
+      if (expectedState && state && expectedState !== state) {
         throw new Error('Invalid OAuth state. Please login again.');
+      }
+
+      if (expectedState && !state) {
+        console.warn('Cognito callback did not include OAuth state. Continuing because PKCE verifier exists.');
       }
 
       const tokenResponse = await exchangeCodeForTokens(code);
