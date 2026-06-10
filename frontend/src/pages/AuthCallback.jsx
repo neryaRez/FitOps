@@ -1,72 +1,60 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 
 export default function AuthCallback() {
-  const navigate = useNavigate();
   const { handleAuthCallback } = useAuth();
-  const [error, setError] = useState(null);
+  const didRunRef = useRef(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    let isMounted = true;
+    if (didRunRef.current) return;
+    didRunRef.current = true;
 
-    const completeLogin = async () => {
+    const run = async () => {
       try {
-        const returnTo = await handleAuthCallback();
-
-        if (isMounted) {
-          navigate(returnTo || '/dashboard', { replace: true });
-        }
-      } catch (callbackError) {
-        console.error('Auth callback failed:', callbackError);
-
-        if (isMounted) {
-          setError(callbackError.message || 'Login failed');
-        }
+        await handleAuthCallback();
+      } catch (err) {
+        console.error('Auth callback failed:', err);
+        setError(err?.message || 'Login failed.');
       }
     };
 
-    completeLogin();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [handleAuthCallback, navigate]);
+    run();
+    // Intentional: callback must run once per page load only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-6">
-        <div className="max-w-md w-full rounded-2xl border bg-white p-6 shadow-sm text-center">
-          <h1 className="text-xl font-semibold text-red-600 mb-3">
-            Login failed
-          </h1>
-
-          <p className="text-sm text-gray-600 mb-6">
-            {error}
-          </p>
-
-          <button
-            type="button"
-            onClick={() => navigate('/', { replace: true })}
-            className="rounded-xl px-4 py-2 bg-black text-white"
+      <div className="min-h-screen flex items-center justify-center bg-white px-6">
+        <div className="max-w-md w-full rounded-3xl border border-gray-200 shadow-sm p-8 text-center">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">Login failed</h1>
+          <p className="text-gray-700 mb-6">{error}</p>
+          <Link
+            to="/"
+            onClick={() => {
+              localStorage.removeItem('fitops_cognito_pkce_verifier');
+              localStorage.removeItem('fitops_cognito_oauth_state');
+              localStorage.removeItem('fitops_cognito_return_to');
+              sessionStorage.removeItem('fitops_cognito_pkce_verifier');
+              sessionStorage.removeItem('fitops_cognito_oauth_state');
+              sessionStorage.removeItem('fitops_cognito_return_to');
+            }}
+            className="inline-flex items-center justify-center rounded-full bg-black px-6 py-3 text-white font-semibold"
           >
             Back to home
-          </button>
+          </Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6">
-      <div className="max-w-md w-full rounded-2xl border bg-white p-6 shadow-sm text-center">
-        <h1 className="text-xl font-semibold mb-3">
-          Completing login...
-        </h1>
-
-        <p className="text-sm text-gray-600">
-          Please wait while we securely sign you in.
-        </p>
+    <div className="min-h-screen flex items-center justify-center bg-white px-6">
+      <div className="max-w-md w-full rounded-3xl border border-gray-200 shadow-sm p-8 text-center">
+        <h1 className="text-2xl font-bold text-gray-900 mb-3">Completing login...</h1>
+        <p className="text-gray-600">Please wait.</p>
       </div>
     </div>
   );
