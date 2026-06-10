@@ -8,6 +8,26 @@ variable "app_client_name" {
   type        = string
 }
 
+variable "domain_prefix" {
+  description = "Prefix for the Cognito Hosted UI domain."
+  type        = string
+}
+
+variable "callback_urls" {
+  description = "Allowed OAuth callback URLs."
+  type        = list(string)
+}
+
+variable "logout_urls" {
+  description = "Allowed OAuth logout URLs."
+  type        = list(string)
+}
+
+variable "aws_region" {
+  description = "AWS region where Cognito is deployed."
+  type        = string
+}
+
 variable "password_minimum_length" {
   description = "Minimum password length."
   type        = number

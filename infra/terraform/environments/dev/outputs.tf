@@ -92,3 +92,18 @@ output "github_frontend_deploy_role_name" {
   description = "IAM role name used by GitHub Actions to deploy the frontend."
   value       = module.github_frontend_deploy.role_name
 }
+
+output "cognito_hosted_ui_base_url" {
+  description = "Cognito Hosted UI base URL."
+  value       = module.cognito.hosted_ui_base_url
+}
+
+output "cognito_callback_url" {
+  description = "Frontend Cognito callback URL."
+  value       = "${local.frontend_base_url}/auth/callback"
+}
+
+output "cognito_logout_url" {
+  description = "Frontend Cognito logout URL."
+  value       = local.frontend_base_url
+}

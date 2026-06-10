@@ -17,3 +17,13 @@ output "app_client_id" {
   description = "Cognito App Client ID."
   value       = aws_cognito_user_pool_client.web.id
 }
+
+output "domain_prefix" {
+  description = "Cognito Hosted UI domain prefix."
+  value       = aws_cognito_user_pool_domain.web.domain
+}
+
+output "hosted_ui_base_url" {
+  description = "Cognito Hosted UI base URL."
+  value       = "https://${aws_cognito_user_pool_domain.web.domain}.auth.${var.aws_region}.amazoncognito.com"
+}
