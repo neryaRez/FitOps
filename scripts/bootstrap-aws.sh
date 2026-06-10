@@ -339,6 +339,7 @@ configure_github_variables_if_possible() {
   fi
 
   set +e
+
   gh variable set AWS_REGION --repo "$GITHUB_REPOSITORY" --body "$AWS_REGION"
   local rc_region=$?
 
@@ -350,9 +351,41 @@ configure_github_variables_if_possible() {
 
   gh variable set CLOUDFRONT_DISTRIBUTION_ID --repo "$GITHUB_REPOSITORY" --body "$CLOUDFRONT_DISTRIBUTION_ID"
   local rc_cf=$?
+
+  gh variable set VITE_API_BASE_URL --repo "$GITHUB_REPOSITORY" --body "$API_ENDPOINT"
+  local rc_vite_api=$?
+
+  gh variable set VITE_COGNITO_REGION --repo "$GITHUB_REPOSITORY" --body "$AWS_REGION"
+  local rc_vite_region=$?
+
+  gh variable set VITE_COGNITO_USER_POOL_ID --repo "$GITHUB_REPOSITORY" --body "$COGNITO_USER_POOL_ID"
+  local rc_vite_pool=$?
+
+  gh variable set VITE_COGNITO_APP_CLIENT_ID --repo "$GITHUB_REPOSITORY" --body "$COGNITO_APP_CLIENT_ID"
+  local rc_vite_client=$?
+
+  gh variable set VITE_COGNITO_HOSTED_UI_BASE_URL --repo "$GITHUB_REPOSITORY" --body "$COGNITO_HOSTED_UI_BASE_URL"
+  local rc_vite_domain=$?
+
+  gh variable set VITE_COGNITO_REDIRECT_URI --repo "$GITHUB_REPOSITORY" --body "$COGNITO_REDIRECT_URI"
+  local rc_vite_redirect=$?
+
+  gh variable set VITE_COGNITO_LOGOUT_URI --repo "$GITHUB_REPOSITORY" --body "$COGNITO_LOGOUT_URI"
+  local rc_vite_logout=$?
+
   set -e
 
-  if [[ "$rc_region" -eq 0 && "$rc_role" -eq 0 && "$rc_bucket" -eq 0 && "$rc_cf" -eq 0 ]]; then
+  if [[ "$rc_region" -eq 0 \
+    && "$rc_role" -eq 0 \
+    && "$rc_bucket" -eq 0 \
+    && "$rc_cf" -eq 0 \
+    && "$rc_vite_api" -eq 0 \
+    && "$rc_vite_region" -eq 0 \
+    && "$rc_vite_pool" -eq 0 \
+    && "$rc_vite_client" -eq 0 \
+    && "$rc_vite_domain" -eq 0 \
+    && "$rc_vite_redirect" -eq 0 \
+    && "$rc_vite_logout" -eq 0 ]]; then
     echo "✅ GitHub repository variables configured automatically."
   else
     echo "ℹ️ Could not configure all GitHub variables automatically."
@@ -368,6 +401,13 @@ print_github_variables_manual_instructions() {
   echo "  AWS_FRONTEND_DEPLOY_ROLE_ARN=$FRONTEND_DEPLOY_ROLE_ARN"
   echo "  FRONTEND_BUCKET=$FRONTEND_BUCKET"
   echo "  CLOUDFRONT_DISTRIBUTION_ID=$CLOUDFRONT_DISTRIBUTION_ID"
+  echo "  VITE_API_BASE_URL=$API_ENDPOINT"
+  echo "  VITE_COGNITO_REGION=$AWS_REGION"
+  echo "  VITE_COGNITO_USER_POOL_ID=$COGNITO_USER_POOL_ID"
+  echo "  VITE_COGNITO_APP_CLIENT_ID=$COGNITO_APP_CLIENT_ID"
+  echo "  VITE_COGNITO_HOSTED_UI_BASE_URL=$COGNITO_HOSTED_UI_BASE_URL"
+  echo "  VITE_COGNITO_REDIRECT_URI=$COGNITO_REDIRECT_URI"
+  echo "  VITE_COGNITO_LOGOUT_URI=$COGNITO_LOGOUT_URI"
 }
 
 print_outputs_and_health_check() {
@@ -385,6 +425,12 @@ print_outputs_and_health_check() {
   CLOUDFRONT_DISTRIBUTION_ID="$(terraform output -raw cloudfront_distribution_id)"
   FRONTEND_DEPLOY_ROLE_ARN="$(terraform output -raw github_frontend_deploy_role_arn 2>/dev/null || true)"
 
+  COGNITO_USER_POOL_ID="$(terraform output -raw cognito_user_pool_id)"
+  COGNITO_APP_CLIENT_ID="$(terraform output -raw cognito_app_client_id)"
+  COGNITO_HOSTED_UI_BASE_URL="$(terraform output -raw cognito_hosted_ui_base_url)"
+  COGNITO_REDIRECT_URI="$(terraform output -raw cognito_callback_url)"
+  COGNITO_LOGOUT_URI="$(terraform output -raw cognito_logout_url)"
+
   echo
   echo "Health check:"
   curl "$API_ENDPOINT/health" || true
@@ -397,6 +443,14 @@ print_outputs_and_health_check() {
 
   echo "API endpoint:"
   echo "$API_ENDPOINT"
+  echo
+
+  echo "Cognito Hosted UI:"
+  echo "$COGNITO_HOSTED_UI_BASE_URL"
+  echo
+
+  echo "Cognito callback URL:"
+  echo "$COGNITO_REDIRECT_URI"
   echo
 }
 

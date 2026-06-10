@@ -55,6 +55,14 @@ jobs:
           check_var "FRONTEND_BUCKET" "${{ vars.FRONTEND_BUCKET }}"
           check_var "CLOUDFRONT_DISTRIBUTION_ID" "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}"
 
+          check_var "VITE_API_BASE_URL" "${{ vars.VITE_API_BASE_URL }}"
+          check_var "VITE_COGNITO_REGION" "${{ vars.VITE_COGNITO_REGION }}"
+          check_var "VITE_COGNITO_USER_POOL_ID" "${{ vars.VITE_COGNITO_USER_POOL_ID }}"
+          check_var "VITE_COGNITO_APP_CLIENT_ID" "${{ vars.VITE_COGNITO_APP_CLIENT_ID }}"
+          check_var "VITE_COGNITO_HOSTED_UI_BASE_URL" "${{ vars.VITE_COGNITO_HOSTED_UI_BASE_URL }}"
+          check_var "VITE_COGNITO_REDIRECT_URI" "${{ vars.VITE_COGNITO_REDIRECT_URI }}"
+          check_var "VITE_COGNITO_LOGOUT_URI" "${{ vars.VITE_COGNITO_LOGOUT_URI }}"
+
           if [[ "$missing" -ne 0 ]]; then
             echo "Required GitHub repository variables are missing."
             exit 1
@@ -71,6 +79,14 @@ jobs:
         run: npm ci
 
       - name: Build frontend
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_COGNITO_REGION: ${{ vars.VITE_COGNITO_REGION }}
+          VITE_COGNITO_USER_POOL_ID: ${{ vars.VITE_COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_APP_CLIENT_ID: ${{ vars.VITE_COGNITO_APP_CLIENT_ID }}
+          VITE_COGNITO_HOSTED_UI_BASE_URL: ${{ vars.VITE_COGNITO_HOSTED_UI_BASE_URL }}
+          VITE_COGNITO_REDIRECT_URI: ${{ vars.VITE_COGNITO_REDIRECT_URI }}
+          VITE_COGNITO_LOGOUT_URI: ${{ vars.VITE_COGNITO_LOGOUT_URI }}
         run: npm run build
 
       - name: Verify build output
