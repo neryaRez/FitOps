@@ -376,38 +376,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const navigateToSignUp = async (returnTo = '/dashboard') => {
-    try {
-      assertCognitoConfig();
-
-      const { verifier, challenge } = await createPkcePair();
-      const state = randomString(32);
-
-      sessionStorage.setItem(STORAGE_KEYS.pkceVerifier, verifier);
-      sessionStorage.setItem(STORAGE_KEYS.oauthState, state);
-      sessionStorage.setItem(STORAGE_KEYS.returnTo, returnTo || '/dashboard');
-
-      localStorage.setItem(STORAGE_KEYS.pkceVerifier, verifier);
-      localStorage.setItem(STORAGE_KEYS.oauthState, state);
-      localStorage.setItem(STORAGE_KEYS.returnTo, returnTo || '/dashboard');
-
-      const params = new URLSearchParams({
-        client_id: COGNITO_CONFIG.clientId,
-        response_type: 'code',
-        scope: OAUTH_SCOPES.join(' '),
-        redirect_uri: COGNITO_CONFIG.redirectUri,
-        code_challenge: challenge,
-        code_challenge_method: 'S256',
-        state
-      });
-
-      window.location.assign(`${COGNITO_CONFIG.hostedUiBaseUrl}/signup?${params.toString()}`);
-    } catch (error) {
-      console.error('Failed to start Cognito signup:', error);
-      setAuthError({
-        type: 'signup_failed',
-        message: error.message || 'Failed to start signup'
-      });
-    }
+    // Cognito Hosted UI direct /signup can lose the PKCE verifier during
+    // the signup + confirmation flow. Start from the standard authorize
+    // endpoint instead; users can choose "Sign up" inside Hosted UI.
+    return navigateToLogin(returnTo);
   };
 
   const handleAuthCallback = async () => {
