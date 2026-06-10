@@ -82,11 +82,13 @@ data "aws_iam_policy_document" "frontend_deploy" {
   }
 
   statement {
-    sid    = "CreateCloudFrontInvalidation"
+    sid    = "ManageCloudFrontDeployment"
     effect = "Allow"
 
     actions = [
-      "cloudfront:CreateInvalidation"
+      "cloudfront:CreateInvalidation",
+      "cloudfront:GetInvalidation",
+      "cloudfront:GetDistribution"
     ]
 
     resources = [
