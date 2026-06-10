@@ -382,83 +382,74 @@ export const AuthProvider = ({ children }) => {
     return navigateToLogin(returnTo);
   };
 
-  const handleAuthCallback = async () => {
-    try {
-      setIsLoadingAuth(true);
-      setAuthError(null);
+const handleAuthCallback = async () => {
+  try {
+    setIsLoadingAuth(true);
+    setAuthError(null);
 
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get('code');
-      const state = params.get('state');
-      const error = params.get('error');
-      const errorDescription = params.get('error_description');
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const state = params.get('state');
+    const error = params.get('error');
+    const errorDescription = params.get('error_description');
 
-      if (error) {
-        throw new Error(errorDescription || error);
-      }
-
-      if (!code) {
-        throw new Error('Missing Cognito authorization code.');
-      }
-
-      const expectedState =
-        sessionStorage.getItem(STORAGE_KEYS.oauthState) ||
-        localStorage.getItem(STORAGE_KEYS.oauthState);
-
-      const pkceVerifier =
-        sessionStorage.getItem(STORAGE_KEYS.pkceVerifier) ||
-        localStorage.getItem(STORAGE_KEYS.pkceVerifier);
-
-      if (!pkceVerifier) {
-        throw new Error('Missing PKCE verifier. Please login again.');
-      }
-
-      if (expectedState && state && expectedState !== state) {
-        throw new Error('Invalid OAuth state. Please login again.');
-      }
-
-      if (expectedState && !state) {
-        console.warn('Cognito callback did not include OAuth state. Continuing because PKCE verifier exists.');
-      }
-
-      const tokenResponse = await exchangeCodeForTokens(code);
-      saveSession(tokenResponse);
-
-      sessionStorage.removeItem(STORAGE_KEYS.pkceVerifier);
-      sessionStorage.removeItem(STORAGE_KEYS.oauthState);
-      localStorage.removeItem(STORAGE_KEYS.pkceVerifier);
-      localStorage.removeItem(STORAGE_KEYS.oauthState);
-
-      const session = getStoredSession();
-      applySessionToState(session);
-      setAuthChecked(true);
-
-      const returnTo =
-        sessionStorage.getItem(STORAGE_KEYS.returnTo) ||
-        localStorage.getItem(STORAGE_KEYS.returnTo) ||
-        '/dashboard';
-
-      sessionStorage.removeItem(STORAGE_KEYS.returnTo);
-      localStorage.removeItem(STORAGE_KEYS.returnTo);
-
-      return returnTo;
-    } catch (error) {
-      console.error('Cognito callback failed:', error);
-
-      clearSession();
-      setUser(null);
-      setIsAuthenticated(false);
-      setAuthChecked(true);
-      setAuthError({
-        type: 'callback_failed',
-        message: error.message || 'Login callback failed'
-      });
-
-      throw error;
-    } finally {
-      setIsLoadingAuth(false);
+    if (error) {
+      throw new Error(errorDescription || error);
     }
-  };
+
+    if (!code) {
+      throw new Error('Missing Cognito authorization code.');
+    }
+
+    const expectedState =
+      sessionStorage.getItem(STORAGE_KEYS.oauthState) ||
+      localStorage.getItem(STORAGE_KEYS.oauthState);
+
+    const pkceVerifier =
+      sessionStorage.getItem(STORAGE_KEYS.pkceVerifier) ||
+      localStorage.getItem(STORAGE_KEYS.pkceVerifier);
+
+    if (!pkceVerifier) {
+      throw new Error('Missing PKCE verifier. Please login again.');
+    }
+
+    if (expectedState && state && expectedState !== state) {
+      throw new Error('Invalid OAuth state. Please login again.');
+    }
+
+    const tokenResponse = await exchangeCodeForTokens(code);
+    saveSession(tokenResponse);
+
+    sessionStorage.removeItem(STORAGE_KEYS.pkceVerifier);
+    sessionStorage.removeItem(STORAGE_KEYS.oauthState);
+    sessionStorage.removeItem(STORAGE_KEYS.returnTo);
+
+    localStorage.removeItem(STORAGE_KEYS.pkceVerifier);
+    localStorage.removeItem(STORAGE_KEYS.oauthState);
+    localStorage.removeItem(STORAGE_KEYS.returnTo);
+
+    const session = getStoredSession();
+    applySessionToState(session);
+
+    setAuthChecked(true);
+    setIsLoadingAuth(false);
+
+    window.location.replace('/dashboard');
+    return;
+  } catch (error) {
+    console.error('Cognito callback failed:', error);
+
+    setAuthError({
+      type: 'callback_failed',
+      message: error.message || 'Login failed'
+    });
+
+    setIsLoadingAuth(false);
+    setAuthChecked(true);
+
+    throw error;
+  }
+};
 
   const logout = (shouldRedirect = true) => {
     clearSession();
