@@ -1,5 +1,3 @@
-import { base44 } from '@/api/base44Client';
-
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 function getAccessToken() {
@@ -77,17 +75,50 @@ export async function deleteMeasurementLog(logId) {
   });
 }
 
-// ── Progress Photos: still legacy until S3/presigned URL phase ───────────────
+// ── Progress Photos: AWS-native private S3 + presigned URLs ──────────────────
 
-export async function getProgressPhotos(userId) {
-  return base44.entities.ProgressPhoto.filter({ userId }, '-date', 100);
+export async function getProgressPhotos(_userId) {
+  return apiRequest('/photos');
 }
 
-export async function uploadProgressPhoto(userId, date, angle, file) {
-  const { file_url } = await base44.integrations.Core.UploadFile({ file });
-  return base44.entities.ProgressPhoto.create({ userId, date, angle, photoUrl: file_url });
+export async function uploadProgressPhoto(_userId, date, angle, file) {
+  if (!file) {
+    throw new Error('Missing photo file.');
+  }
+
+  const contentType = file.type || 'image/jpeg';
+
+  const uploadSession = await apiRequest('/photos/upload-url', {
+    method: 'POST',
+    body: JSON.stringify({ contentType }),
+  });
+
+  const uploadResponse = await fetch(uploadSession.uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'content-type': contentType,
+    },
+    body: file,
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error(`S3 upload failed: ${uploadResponse.status}`);
+  }
+
+  return apiRequest('/photos/complete', {
+    method: 'POST',
+    body: JSON.stringify({
+      photoId: uploadSession.photoId,
+      s3Key: uploadSession.s3Key,
+      date,
+      angle,
+      contentType,
+    }),
+  });
 }
 
 export async function deleteProgressPhoto(photoId) {
-  return base44.entities.ProgressPhoto.delete(photoId);
+  return apiRequest(`/photos/${encodeURIComponent(photoId)}`, {
+    method: 'DELETE',
+  });
 }

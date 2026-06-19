@@ -98,8 +98,10 @@ module "progress_photos_bucket" {
 
   bucket_prefix = "${local.name_prefix}-progress-photos"
 
-  # Later, after CloudFront/frontend domain exists, replace with the real frontend origin.
-  cors_allowed_origins = []
+  cors_allowed_origins = [
+    local.frontend_base_url,
+    "http://localhost:5173"
+  ]
 
   tags = local.common_tags
 }

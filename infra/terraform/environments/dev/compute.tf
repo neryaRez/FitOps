@@ -60,8 +60,11 @@ module "progress_lambda" {
   source_file   = abspath("${path.root}/../../../../backend/functions/progress/handler.js")
 
   environment_variables = {
-    WEIGHT_LOGS_TABLE      = module.weight_logs_table.table_name
-    MEASUREMENT_LOGS_TABLE = module.measurement_logs_table.table_name
+    WEIGHT_LOGS_TABLE          = module.weight_logs_table.table_name
+    MEASUREMENT_LOGS_TABLE     = module.measurement_logs_table.table_name
+    PHOTOS_TABLE               = module.progress_photos_table.table_name
+    PHOTOS_BUCKET              = module.progress_photos_bucket.bucket_name
+    SIGNED_URL_EXPIRES_SECONDS = "900"
   }
 
   inline_policy_json = jsonencode({
@@ -78,8 +81,19 @@ module "progress_lambda" {
         ]
         Resource = [
           module.weight_logs_table.table_arn,
-          module.measurement_logs_table.table_arn
+          module.measurement_logs_table.table_arn,
+          module.progress_photos_table.table_arn
         ]
+      },
+      {
+        Sid    = "ProgressPhotosBucketObjectAccess"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Resource = "${module.progress_photos_bucket.bucket_arn}/*"
       }
     ]
   })
@@ -174,6 +188,39 @@ module "http_api" {
 
     measurements_delete = {
       route_key            = "DELETE /measurements/{date}"
+      lambda_invoke_arn    = module.progress_lambda.invoke_arn
+      lambda_function_arn  = module.progress_lambda.function_arn
+      lambda_function_name = module.progress_lambda.function_name
+      authorizer_required  = true
+    }
+
+
+    photos_get = {
+      route_key            = "GET /photos"
+      lambda_invoke_arn    = module.progress_lambda.invoke_arn
+      lambda_function_arn  = module.progress_lambda.function_arn
+      lambda_function_name = module.progress_lambda.function_name
+      authorizer_required  = true
+    }
+
+    photos_upload_url = {
+      route_key            = "POST /photos/upload-url"
+      lambda_invoke_arn    = module.progress_lambda.invoke_arn
+      lambda_function_arn  = module.progress_lambda.function_arn
+      lambda_function_name = module.progress_lambda.function_name
+      authorizer_required  = true
+    }
+
+    photos_complete = {
+      route_key            = "POST /photos/complete"
+      lambda_invoke_arn    = module.progress_lambda.invoke_arn
+      lambda_function_arn  = module.progress_lambda.function_arn
+      lambda_function_name = module.progress_lambda.function_name
+      authorizer_required  = true
+    }
+
+    photos_delete = {
+      route_key            = "DELETE /photos/{photoId}"
       lambda_invoke_arn    = module.progress_lambda.invoke_arn
       lambda_function_arn  = module.progress_lambda.function_arn
       lambda_function_name = module.progress_lambda.function_name
