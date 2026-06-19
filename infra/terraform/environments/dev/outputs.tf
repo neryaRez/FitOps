@@ -83,16 +83,6 @@ output "cognito_app_client_id" {
   value       = module.cognito.app_client_id
 }
 
-output "github_frontend_deploy_role_arn" {
-  description = "IAM role ARN used by GitHub Actions to deploy the frontend."
-  value       = module.github_frontend_deploy.role_arn
-}
-
-output "github_frontend_deploy_role_name" {
-  description = "IAM role name used by GitHub Actions to deploy the frontend."
-  value       = module.github_frontend_deploy.role_name
-}
-
 output "cognito_hosted_ui_base_url" {
   description = "Cognito Hosted UI base URL."
   value       = module.cognito.hosted_ui_base_url

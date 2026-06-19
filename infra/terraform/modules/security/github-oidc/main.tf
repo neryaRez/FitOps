@@ -1,3 +1,5 @@
+data "aws_caller_identity" "current" {}
+
 resource "aws_iam_openid_connect_provider" "github" {
   count = var.github_oidc_provider_arn == null ? 1 : 0
 
@@ -6,6 +8,8 @@ resource "aws_iam_openid_connect_provider" "github" {
   client_id_list = [
     "sts.amazonaws.com"
   ]
+
+  thumbprint_list = var.thumbprint_list
 
   tags = var.tags
 }
@@ -16,17 +20,13 @@ locals {
 
 data "aws_iam_policy_document" "assume_role" {
   statement {
-    effect = "Allow"
-
-    actions = [
-      "sts:AssumeRoleWithWebIdentity"
-    ]
+    sid     = "GitHubActionsAssumeRole"
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
 
     principals {
-      type = "Federated"
-      identifiers = [
-        local.oidc_provider_arn
-      ]
+      type        = "Federated"
+      identifiers = [local.oidc_provider_arn]
     }
 
     condition {
@@ -53,13 +53,12 @@ resource "aws_iam_role" "this" {
 }
 
 data "aws_iam_policy_document" "frontend_deploy" {
-  statement {
-    sid    = "ListStaticSiteBucket"
-    effect = "Allow"
+  count = var.deploy_policy_mode == "frontend" ? 1 : 0
 
-    actions = [
-      "s3:ListBucket"
-    ]
+  statement {
+    sid     = "ListStaticSiteBucket"
+    effect  = "Allow"
+    actions = ["s3:ListBucket"]
 
     resources = [
       var.static_site_bucket_arn
@@ -97,14 +96,104 @@ data "aws_iam_policy_document" "frontend_deploy" {
   }
 }
 
-resource "aws_iam_policy" "frontend_deploy" {
-  name   = "${var.role_name}-policy"
-  policy = data.aws_iam_policy_document.frontend_deploy.json
+data "aws_iam_policy_document" "terraform_dev_deploy" {
+  count = var.deploy_policy_mode == "terraform_dev" ? 1 : 0
+
+  statement {
+    sid    = "TerraformStateBackendAccess"
+    effect = "Allow"
+
+    actions = [
+      "s3:GetBucketLocation",
+      "s3:ListBucket",
+      "s3:GetBucketVersioning",
+      "s3:GetBucketEncryption",
+      "s3:GetBucketPolicy",
+      "s3:GetPublicAccessBlock",
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:ListBucketMultipartUploads",
+      "s3:AbortMultipartUpload"
+    ]
+
+    resources = [
+      "arn:aws:s3:::${var.terraform_state_bucket}",
+      "arn:aws:s3:::${var.terraform_state_bucket}/*"
+    ]
+  }
+
+  statement {
+    sid    = "TerraformLockTableAccess"
+    effect = "Allow"
+
+    actions = [
+      "dynamodb:DescribeTable",
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:DeleteItem"
+    ]
+
+    resources = [
+      "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.terraform_lock_table}"
+    ]
+  }
+
+  statement {
+    sid    = "FitOpsDevTerraformApply"
+    effect = "Allow"
+
+    actions = [
+      "sts:GetCallerIdentity",
+
+      "s3:*",
+      "cloudfront:*",
+      "dynamodb:*",
+      "lambda:*",
+      "logs:*",
+      "apigateway:*",
+      "cognito-idp:*",
+
+      "iam:Get*",
+      "iam:List*",
+      "iam:CreateRole",
+      "iam:DeleteRole",
+      "iam:UpdateRole",
+      "iam:TagRole",
+      "iam:UntagRole",
+      "iam:PassRole",
+      "iam:CreatePolicy",
+      "iam:DeletePolicy",
+      "iam:CreatePolicyVersion",
+      "iam:DeletePolicyVersion",
+      "iam:SetDefaultPolicyVersion",
+      "iam:AttachRolePolicy",
+      "iam:DetachRolePolicy",
+      "iam:PutRolePolicy",
+      "iam:DeleteRolePolicy",
+      "iam:CreateServiceLinkedRole",
+      "iam:UpdateAssumeRolePolicy",
+
+      "bedrock:InvokeModel"
+    ]
+
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "this" {
+  name = "${var.role_name}-policy"
+
+  policy = (
+    var.deploy_policy_mode == "terraform_dev"
+    ? data.aws_iam_policy_document.terraform_dev_deploy[0].json
+    : data.aws_iam_policy_document.frontend_deploy[0].json
+  )
 
   tags = var.tags
 }
 
-resource "aws_iam_role_policy_attachment" "frontend_deploy" {
+resource "aws_iam_role_policy_attachment" "this" {
   role       = aws_iam_role.this.name
-  policy_arn = aws_iam_policy.frontend_deploy.arn
+  policy_arn = aws_iam_policy.this.arn
 }

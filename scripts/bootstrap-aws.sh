@@ -1,41 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ============================================================
-# FitOps AWS Bootstrap
-# ============================================================
-# One-command bootstrap for the FitOps AWS dev environment.
-#
-# What it does:
-#   1. Detects project root.
-#   2. Validates required tools.
-#   3. Validates AWS identity.
-#   4. Detects GitHub repository from git remote.
-#   5. Detects existing GitHub OIDC provider.
-#      - If exists: Terraform uses it.
-#      - If not: Terraform creates it.
-#      - If Terraform already manages it: Terraform keeps managing it.
-#   6. Creates Terraform backend resources:
-#      - S3 bucket for tfstate
-#      - DynamoDB table for state locking
-#      - local backend.tf
-#   7. Generates local terraform.tfvars.
-#   8. Runs terraform init/fmt/validate/apply.
-#   9. Prints outputs and tests /health.
-#  10. Best-effort GitHub Actions repository variables setup.
-#
-# Usage:
-#   ./scripts/bootstrap-aws.sh
-#
-# Optional environment overrides:
-#   PROJECT_NAME=fitops ./scripts/bootstrap-aws.sh
-#   ENVIRONMENT=dev ./scripts/bootstrap-aws.sh
-#   AWS_REGION=us-east-1 ./scripts/bootstrap-aws.sh
-#   GITHUB_REPOSITORY=OWNER/REPOSITORY ./scripts/bootstrap-aws.sh
-#   GITHUB_OIDC_PROVIDER_ARN=arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com ./scripts/bootstrap-aws.sh
-#   AUTO_APPROVE=false ./scripts/bootstrap-aws.sh
-# ============================================================
-
 PROJECT_NAME="${PROJECT_NAME:-fitops}"
 ENVIRONMENT="${ENVIRONMENT:-dev}"
 AWS_REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}"
@@ -44,18 +9,31 @@ AUTO_APPROVE="${AUTO_APPROVE:-true}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-TF_ENV_DIR="$ROOT_DIR/infra/terraform/environments/$ENVIRONMENT"
-BACKEND_FILE="$TF_ENV_DIR/backend.tf"
-TFVARS_FILE="$TF_ENV_DIR/terraform.tfvars"
+TF_DEV_DIR="$ROOT_DIR/infra/terraform/environments/$ENVIRONMENT"
+TF_BOOTSTRAP_DIR="$ROOT_DIR/infra/terraform/bootstrap"
+
+DEV_BACKEND_FILE="$TF_DEV_DIR/backend.tf"
+DEV_TFVARS_FILE="$TF_DEV_DIR/terraform.tfvars"
+
+BOOTSTRAP_BACKEND_FILE="$TF_BOOTSTRAP_DIR/backend.tf"
+BOOTSTRAP_TFVARS_FILE="$TF_BOOTSTRAP_DIR/terraform.tfvars"
 
 echo
 echo "============================================================"
-echo "🚀 FitOps AWS bootstrap"
+echo "🚀 FitOps AWS Bootstrap"
 echo "============================================================"
 echo
 
 command_exists() {
   command -v "$1" >/dev/null 2>&1
+}
+
+require_tool() {
+  local tool="$1"
+  if ! command_exists "$tool"; then
+    echo "❌ Missing required tool: $tool"
+    exit 1
+  fi
 }
 
 clean_name() {
@@ -67,18 +45,8 @@ clean_name() {
     | sed 's/-$//'
 }
 
-require_tool() {
-  local tool="$1"
-
-  if ! command_exists "$tool"; then
-    echo "❌ Missing required tool: $tool"
-    exit 1
-  fi
-}
-
 detect_github_repository() {
   local remote_url
-
   remote_url="$(git -C "$ROOT_DIR" remote get-url origin 2>/dev/null || true)"
 
   if [[ -z "$remote_url" ]]; then
@@ -100,20 +68,15 @@ detect_existing_github_oidc_provider_arn() {
     | head -n 1 || true
 }
 
-terraform_state_has_managed_github_oidc_provider() {
-  terraform state list 2>/dev/null \
-    | grep -q 'module.github_frontend_deploy.aws_iam_openid_connect_provider.github'
-}
-
 create_or_update_backend_bucket() {
   echo
-  echo "Preparing Terraform backend resources..."
+  echo "Preparing Terraform backend S3 bucket..."
   echo
 
   if aws s3api head-bucket --bucket "$STATE_BUCKET" 2>/dev/null; then
-    echo "✅ S3 backend bucket already exists: $STATE_BUCKET"
+    echo "✅ Backend bucket already exists: $STATE_BUCKET"
   else
-    echo "📦 Creating S3 backend bucket: $STATE_BUCKET"
+    echo "📦 Creating backend bucket: $STATE_BUCKET"
 
     if [[ "$AWS_REGION" == "us-east-1" ]]; then
       aws s3api create-bucket \
@@ -126,10 +89,8 @@ create_or_update_backend_bucket() {
         --create-bucket-configuration LocationConstraint="$AWS_REGION"
     fi
 
-    echo "✅ S3 backend bucket created."
+    echo "✅ Backend bucket created."
   fi
-
-  echo "🔒 Securing backend bucket..."
 
   aws s3api put-public-access-block \
     --bucket "$STATE_BUCKET" \
@@ -156,7 +117,7 @@ create_or_update_backend_bucket() {
   local policy_file
   policy_file="$(mktemp)"
 
-  cat > "$policy_file" <<EOF
+  cat > "$policy_file" <<POLICY
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -177,7 +138,7 @@ create_or_update_backend_bucket() {
     }
   ]
 }
-EOF
+POLICY
 
   aws s3api put-bucket-policy \
     --bucket "$STATE_BUCKET" \
@@ -185,7 +146,7 @@ EOF
 
   rm -f "$policy_file"
 
-  echo "✅ Backend bucket security configured."
+  echo "✅ Backend bucket secured."
 }
 
 create_or_update_lock_table() {
@@ -196,9 +157,9 @@ create_or_update_lock_table() {
   if aws dynamodb describe-table \
     --table-name "$LOCK_TABLE" \
     --region "$AWS_REGION" >/dev/null 2>&1; then
-    echo "✅ DynamoDB lock table already exists: $LOCK_TABLE"
+    echo "✅ Lock table already exists: $LOCK_TABLE"
   else
-    echo "🔐 Creating DynamoDB lock table: $LOCK_TABLE"
+    echo "🔐 Creating lock table: $LOCK_TABLE"
 
     aws dynamodb create-table \
       --table-name "$LOCK_TABLE" \
@@ -211,99 +172,69 @@ create_or_update_lock_table() {
       --table-name "$LOCK_TABLE" \
       --region "$AWS_REGION"
 
-    echo "✅ DynamoDB lock table created."
+    echo "✅ Lock table created."
   fi
 }
 
 write_backend_tf() {
-  mkdir -p "$TF_ENV_DIR"
+  local target_file="$1"
+  local state_key="$2"
 
-  cat > "$BACKEND_FILE" <<EOF
+  mkdir -p "$(dirname "$target_file")"
+
+  cat > "$target_file" <<BACKEND
 terraform {
   backend "s3" {
     bucket         = "$STATE_BUCKET"
-    key            = "$STATE_KEY"
+    key            = "$state_key"
     region         = "$AWS_REGION"
     dynamodb_table = "$LOCK_TABLE"
     encrypt        = true
   }
 }
-EOF
+BACKEND
 
-  echo
-  echo "✅ Generated Terraform backend file:"
-  echo "   $BACKEND_FILE"
+  echo "✅ Wrote backend file: $target_file"
 }
 
-write_tfvars_null_oidc() {
-  cat > "$TFVARS_FILE" <<EOF
-project_name              = "$PROJECT_NAME"
-environment               = "$ENVIRONMENT"
-aws_region                = "$AWS_REGION"
-github_repository         = "$GITHUB_REPOSITORY"
-github_oidc_provider_arn  = null
-EOF
+write_dev_tfvars() {
+  mkdir -p "$TF_DEV_DIR"
+
+  cat > "$DEV_TFVARS_FILE" <<TFVARS
+project_name = "$PROJECT_NAME"
+environment  = "$ENVIRONMENT"
+aws_region   = "$AWS_REGION"
+TFVARS
+
+  echo "✅ Wrote dev tfvars: $DEV_TFVARS_FILE"
 }
 
-write_tfvars_existing_oidc() {
-  local oidc_provider_arn="$1"
+write_bootstrap_tfvars() {
+  mkdir -p "$TF_BOOTSTRAP_DIR"
 
-  cat > "$TFVARS_FILE" <<EOF
-project_name              = "$PROJECT_NAME"
-environment               = "$ENVIRONMENT"
-aws_region                = "$AWS_REGION"
-github_repository         = "$GITHUB_REPOSITORY"
-github_oidc_provider_arn  = "$oidc_provider_arn"
-EOF
+  cat > "$BOOTSTRAP_TFVARS_FILE" <<TFVARS
+project_name             = "$PROJECT_NAME"
+environment              = "$ENVIRONMENT"
+aws_region               = "$AWS_REGION"
+github_repository        = "$GITHUB_REPOSITORY"
+github_branch            = "main"
+github_oidc_provider_arn = $GITHUB_OIDC_PROVIDER_VALUE
+terraform_state_bucket   = "$STATE_BUCKET"
+terraform_lock_table     = "$LOCK_TABLE"
+TFVARS
+
+  echo "✅ Wrote bootstrap tfvars: $BOOTSTRAP_TFVARS_FILE"
 }
 
-prepare_tfvars_with_oidc_strategy() {
+run_bootstrap_terraform() {
   echo
-  echo "Preparing local terraform.tfvars..."
+  echo "Running Terraform bootstrap only..."
   echo
 
-  mkdir -p "$TF_ENV_DIR"
+  cd "$TF_BOOTSTRAP_DIR"
 
-  # Initial tfvars, needed before terraform init/state checks.
-  write_tfvars_null_oidc
-
-  cd "$TF_ENV_DIR"
+  terraform fmt -recursive .
   terraform init
-
-  GITHUB_OIDC_PROVIDER_ARN="${GITHUB_OIDC_PROVIDER_ARN:-}"
-
-  if terraform_state_has_managed_github_oidc_provider; then
-    echo "✅ GitHub OIDC provider is already managed by this Terraform state."
-    echo "   Keeping github_oidc_provider_arn = null"
-    write_tfvars_null_oidc
-  else
-    if [[ -z "$GITHUB_OIDC_PROVIDER_ARN" ]]; then
-      GITHUB_OIDC_PROVIDER_ARN="$(detect_existing_github_oidc_provider_arn)"
-    fi
-
-    if [[ -n "$GITHUB_OIDC_PROVIDER_ARN" ]]; then
-      echo "✅ Existing GitHub OIDC provider detected:"
-      echo "   $GITHUB_OIDC_PROVIDER_ARN"
-      write_tfvars_existing_oidc "$GITHUB_OIDC_PROVIDER_ARN"
-    else
-      echo "ℹ️ No existing GitHub OIDC provider detected."
-      echo "   Terraform will create one."
-      write_tfvars_null_oidc
-    fi
-  fi
-
-  echo "✅ Generated local variables file:"
-  echo "   $TFVARS_FILE"
-}
-
-run_terraform() {
-  echo
-  echo "Running Terraform..."
-  echo
-
-  cd "$TF_ENV_DIR"
-
-  terraform fmt -recursive ../../
   terraform validate
 
   if [[ "$AUTO_APPROVE" == "true" ]]; then
@@ -312,11 +243,33 @@ run_terraform() {
     terraform plan -out=tfplan
     terraform apply tfplan
   fi
+
+  GITHUB_ACTIONS_ROLE_ARN="$(terraform output -raw github_actions_role_arn)"
+  GITHUB_ACTIONS_ROLE_NAME="$(terraform output -raw github_actions_role_name)"
+  GITHUB_OIDC_PROVIDER_OUTPUT_ARN="$(terraform output -raw github_oidc_provider_arn)"
+
+  echo
+  echo "✅ Bootstrap Terraform completed."
+  echo "GitHub Actions role:"
+  echo "  $GITHUB_ACTIONS_ROLE_ARN"
+  echo
+}
+
+print_github_variables_manual_instructions() {
+  echo
+  echo "Set these GitHub Repository Variables manually if needed:"
+  echo "  AWS_REGION=$AWS_REGION"
+  echo "  AWS_GITHUB_ACTIONS_ROLE_ARN=$GITHUB_ACTIONS_ROLE_ARN"
+  echo "  TF_STATE_BUCKET=$STATE_BUCKET"
+  echo "  TF_STATE_LOCK_TABLE=$LOCK_TABLE"
+  echo "  TF_DEV_STATE_KEY=$DEV_STATE_KEY"
+  echo "  PROJECT_NAME=$PROJECT_NAME"
+  echo "  ENVIRONMENT=$ENVIRONMENT"
 }
 
 configure_github_variables_if_possible() {
   echo
-  echo "Configuring GitHub Actions repository variables..."
+  echo "Configuring minimal GitHub repository variables..."
   echo
 
   if ! command_exists gh; then
@@ -326,14 +279,8 @@ configure_github_variables_if_possible() {
   fi
 
   if ! gh auth status >/dev/null 2>&1; then
-    echo "ℹ️ GitHub CLI is installed but not authenticated. Skipping automatic GitHub variable setup."
-    echo "   To enable it later, run: gh auth login"
-    print_github_variables_manual_instructions
-    return 0
-  fi
-
-  if [[ -z "$FRONTEND_DEPLOY_ROLE_ARN" ]]; then
-    echo "ℹ️ Frontend deploy role ARN is empty. Skipping GitHub variable setup."
+    echo "ℹ️ GitHub CLI is installed but not authenticated."
+    echo "   Run later: gh auth login"
     print_github_variables_manual_instructions
     return 0
   fi
@@ -341,131 +288,50 @@ configure_github_variables_if_possible() {
   set +e
 
   gh variable set AWS_REGION --repo "$GITHUB_REPOSITORY" --body "$AWS_REGION"
-  local rc_region=$?
+  rc_region=$?
 
-  gh variable set AWS_FRONTEND_DEPLOY_ROLE_ARN --repo "$GITHUB_REPOSITORY" --body "$FRONTEND_DEPLOY_ROLE_ARN"
-  local rc_role=$?
+  gh variable set AWS_GITHUB_ACTIONS_ROLE_ARN --repo "$GITHUB_REPOSITORY" --body "$GITHUB_ACTIONS_ROLE_ARN"
+  rc_role=$?
 
-  gh variable set FRONTEND_BUCKET --repo "$GITHUB_REPOSITORY" --body "$FRONTEND_BUCKET"
-  local rc_bucket=$?
+  gh variable set TF_STATE_BUCKET --repo "$GITHUB_REPOSITORY" --body "$STATE_BUCKET"
+  rc_bucket=$?
 
-  gh variable set CLOUDFRONT_DISTRIBUTION_ID --repo "$GITHUB_REPOSITORY" --body "$CLOUDFRONT_DISTRIBUTION_ID"
-  local rc_cf=$?
+  gh variable set TF_STATE_LOCK_TABLE --repo "$GITHUB_REPOSITORY" --body "$LOCK_TABLE"
+  rc_lock=$?
 
-  gh variable set VITE_API_BASE_URL --repo "$GITHUB_REPOSITORY" --body "$API_ENDPOINT"
-  local rc_vite_api=$?
+  gh variable set TF_DEV_STATE_KEY --repo "$GITHUB_REPOSITORY" --body "$DEV_STATE_KEY"
+  rc_key=$?
 
-  gh variable set VITE_COGNITO_REGION --repo "$GITHUB_REPOSITORY" --body "$AWS_REGION"
-  local rc_vite_region=$?
+  gh variable set PROJECT_NAME --repo "$GITHUB_REPOSITORY" --body "$PROJECT_NAME"
+  rc_project=$?
 
-  gh variable set VITE_COGNITO_USER_POOL_ID --repo "$GITHUB_REPOSITORY" --body "$COGNITO_USER_POOL_ID"
-  local rc_vite_pool=$?
-
-  gh variable set VITE_COGNITO_APP_CLIENT_ID --repo "$GITHUB_REPOSITORY" --body "$COGNITO_APP_CLIENT_ID"
-  local rc_vite_client=$?
-
-  gh variable set VITE_COGNITO_HOSTED_UI_BASE_URL --repo "$GITHUB_REPOSITORY" --body "$COGNITO_HOSTED_UI_BASE_URL"
-  local rc_vite_domain=$?
-
-  gh variable set VITE_COGNITO_REDIRECT_URI --repo "$GITHUB_REPOSITORY" --body "$COGNITO_REDIRECT_URI"
-  local rc_vite_redirect=$?
-
-  gh variable set VITE_COGNITO_LOGOUT_URI --repo "$GITHUB_REPOSITORY" --body "$COGNITO_LOGOUT_URI"
-  local rc_vite_logout=$?
+  gh variable set ENVIRONMENT --repo "$GITHUB_REPOSITORY" --body "$ENVIRONMENT"
+  rc_env=$?
 
   set -e
 
   if [[ "$rc_region" -eq 0 \
     && "$rc_role" -eq 0 \
     && "$rc_bucket" -eq 0 \
-    && "$rc_cf" -eq 0 \
-    && "$rc_vite_api" -eq 0 \
-    && "$rc_vite_region" -eq 0 \
-    && "$rc_vite_pool" -eq 0 \
-    && "$rc_vite_client" -eq 0 \
-    && "$rc_vite_domain" -eq 0 \
-    && "$rc_vite_redirect" -eq 0 \
-    && "$rc_vite_logout" -eq 0 ]]; then
-    echo "✅ GitHub repository variables configured automatically."
+    && "$rc_lock" -eq 0 \
+    && "$rc_key" -eq 0 \
+    && "$rc_project" -eq 0 \
+    && "$rc_env" -eq 0 ]]; then
+    echo "✅ Minimal GitHub repository variables configured."
   else
     echo "ℹ️ Could not configure all GitHub variables automatically."
-    echo "   This may be caused by missing repo permissions or GitHub CLI auth scope."
     print_github_variables_manual_instructions
   fi
 }
 
-print_github_variables_manual_instructions() {
-  echo
-  echo "Set these GitHub Repository Variables manually if needed:"
-  echo "  AWS_REGION=$AWS_REGION"
-  echo "  AWS_FRONTEND_DEPLOY_ROLE_ARN=$FRONTEND_DEPLOY_ROLE_ARN"
-  echo "  FRONTEND_BUCKET=$FRONTEND_BUCKET"
-  echo "  CLOUDFRONT_DISTRIBUTION_ID=$CLOUDFRONT_DISTRIBUTION_ID"
-  echo "  VITE_API_BASE_URL=$API_ENDPOINT"
-  echo "  VITE_COGNITO_REGION=$AWS_REGION"
-  echo "  VITE_COGNITO_USER_POOL_ID=$COGNITO_USER_POOL_ID"
-  echo "  VITE_COGNITO_APP_CLIENT_ID=$COGNITO_APP_CLIENT_ID"
-  echo "  VITE_COGNITO_HOSTED_UI_BASE_URL=$COGNITO_HOSTED_UI_BASE_URL"
-  echo "  VITE_COGNITO_REDIRECT_URI=$COGNITO_REDIRECT_URI"
-  echo "  VITE_COGNITO_LOGOUT_URI=$COGNITO_LOGOUT_URI"
-}
-
-print_outputs_and_health_check() {
-  echo
-  echo "============================================================"
-  echo "✅ FitOps AWS environment is deployed"
-  echo "============================================================"
-  echo
-
-  terraform output
-
-  API_ENDPOINT="$(terraform output -raw api_endpoint)"
-  CLOUDFRONT_DOMAIN="$(terraform output -raw cloudfront_domain_name)"
-  FRONTEND_BUCKET="$(terraform output -raw static_site_bucket_name)"
-  CLOUDFRONT_DISTRIBUTION_ID="$(terraform output -raw cloudfront_distribution_id)"
-  FRONTEND_DEPLOY_ROLE_ARN="$(terraform output -raw github_frontend_deploy_role_arn 2>/dev/null || true)"
-
-  COGNITO_USER_POOL_ID="$(terraform output -raw cognito_user_pool_id)"
-  COGNITO_APP_CLIENT_ID="$(terraform output -raw cognito_app_client_id)"
-  COGNITO_HOSTED_UI_BASE_URL="$(terraform output -raw cognito_hosted_ui_base_url)"
-  COGNITO_REDIRECT_URI="$(terraform output -raw cognito_callback_url)"
-  COGNITO_LOGOUT_URI="$(terraform output -raw cognito_logout_url)"
-
-  echo
-  echo "Health check:"
-  curl "$API_ENDPOINT/health" || true
-  echo
-
-  echo
-  echo "Frontend CloudFront URL:"
-  echo "https://$CLOUDFRONT_DOMAIN"
-  echo
-
-  echo "API endpoint:"
-  echo "$API_ENDPOINT"
-  echo
-
-  echo "Cognito Hosted UI:"
-  echo "$COGNITO_HOSTED_UI_BASE_URL"
-  echo
-
-  echo "Cognito callback URL:"
-  echo "$COGNITO_REDIRECT_URI"
-  echo
-}
-
 echo "Checking required tools..."
-
 require_tool git
 require_tool aws
 require_tool terraform
-require_tool curl
-
 echo "✅ Required tools found."
 echo
 
 echo "Checking AWS identity..."
-
 ACCOUNT_ID="$(aws sts get-caller-identity \
   --query Account \
   --output text \
@@ -473,8 +339,9 @@ ACCOUNT_ID="$(aws sts get-caller-identity \
 
 if [[ -z "$ACCOUNT_ID" || "$ACCOUNT_ID" == "None" ]]; then
   echo "❌ Could not detect AWS account."
-  echo "Run one of these first:"
+  echo "Run first:"
   echo "  aws configure"
+  echo "or:"
   echo "  aws sso login"
   exit 1
 fi
@@ -498,17 +365,22 @@ fi
 PROJECT_CLEAN="$(clean_name "$PROJECT_NAME")"
 USER_CLEAN="$(clean_name "${USER:-${USERNAME:-user}}")"
 
-if [[ -z "$PROJECT_CLEAN" ]]; then
-  PROJECT_CLEAN="fitops"
-fi
-
-if [[ -z "$USER_CLEAN" ]]; then
-  USER_CLEAN="user"
-fi
+[[ -n "$PROJECT_CLEAN" ]] || PROJECT_CLEAN="fitops"
+[[ -n "$USER_CLEAN" ]] || USER_CLEAN="user"
 
 STATE_BUCKET="${PROJECT_CLEAN}-${USER_CLEAN}-tfstate-${ACCOUNT_ID}-${AWS_REGION}"
 LOCK_TABLE="${PROJECT_CLEAN}-${USER_CLEAN}-terraform-locks"
-STATE_KEY="tfstate/${PROJECT_CLEAN}/${USER_CLEAN}/${ENVIRONMENT}/terraform.tfstate"
+
+DEV_STATE_KEY="tfstate/${PROJECT_CLEAN}/${USER_CLEAN}/${ENVIRONMENT}/terraform.tfstate"
+BOOTSTRAP_STATE_KEY="tfstate/${PROJECT_CLEAN}/${USER_CLEAN}/bootstrap/terraform.tfstate"
+
+EXISTING_GITHUB_OIDC_PROVIDER_ARN="${GITHUB_OIDC_PROVIDER_ARN:-$(detect_existing_github_oidc_provider_arn)}"
+
+if [[ -n "$EXISTING_GITHUB_OIDC_PROVIDER_ARN" ]]; then
+  GITHUB_OIDC_PROVIDER_VALUE="\"$EXISTING_GITHUB_OIDC_PROVIDER_ARN\""
+else
+  GITHUB_OIDC_PROVIDER_VALUE="null"
+fi
 
 echo "Project:      $PROJECT_NAME"
 echo "Environment:  $ENVIRONMENT"
@@ -517,19 +389,29 @@ echo "AWS account:  $ACCOUNT_ID"
 echo "GitHub repo:  $GITHUB_REPOSITORY"
 echo
 echo "Terraform backend:"
-echo "  S3 bucket:     $STATE_BUCKET"
-echo "  DynamoDB lock: $LOCK_TABLE"
-echo "  State key:     $STATE_KEY"
+echo "  S3 bucket:        $STATE_BUCKET"
+echo "  DynamoDB lock:    $LOCK_TABLE"
+echo "  Dev state key:    $DEV_STATE_KEY"
+echo "  Bootstrap key:    $BOOTSTRAP_STATE_KEY"
 echo
 
 create_or_update_backend_bucket
 create_or_update_lock_table
-write_backend_tf
-prepare_tfvars_with_oidc_strategy
-run_terraform
-print_outputs_and_health_check
+
+write_backend_tf "$DEV_BACKEND_FILE" "$DEV_STATE_KEY"
+write_backend_tf "$BOOTSTRAP_BACKEND_FILE" "$BOOTSTRAP_STATE_KEY"
+
+write_dev_tfvars
+write_bootstrap_tfvars
+
+run_bootstrap_terraform
 configure_github_variables_if_possible
 
 echo
-echo "Done."
+echo "============================================================"
+echo "✅ Bootstrap completed"
+echo "============================================================"
+echo
+echo "Next step:"
+echo "  Commit and push, then run the first GitHub Action to provision dev."
 echo

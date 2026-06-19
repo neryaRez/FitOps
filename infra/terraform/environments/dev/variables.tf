@@ -16,16 +16,6 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
-variable "github_repository" {
-  description = "GitHub repository allowed to deploy this environment, in owner/repo format."
-  type        = string
-}
-
-variable "github_oidc_provider_arn" {
-  description = "Existing GitHub OIDC provider ARN. If null, Terraform will create one."
-  type        = string
-  default     = null
-}
 variable "bedrock_model_id" {
   description = "Amazon Bedrock model ID used for AI insights generation."
   type        = string
