@@ -42,3 +42,8 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "inline_policy_json" {
+  type    = string
+  default = null
+}

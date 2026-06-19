@@ -1,140 +1,200 @@
-/* eslint-disable no-undef */
-/**
- * backend/functions/progress/handler.js
- * AWS Lambda handlers for Weight Logs, Measurements, and Progress Photos.
- * Phase 2: wire these to API Gateway routes in serverless.yml
- *
- * DynamoDB Tables:
- *   fitops-weight-logs       PK: userId  SK: date
- *   fitops-measurement-logs  PK: userId  SK: date
- *   fitops-progress-photos   PK: userId  SK: date#angle
- */
-
-const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const {
-  DynamoDBDocumentClient,
+  DynamoDBClient,
   QueryCommand,
-  PutCommand,
-  DeleteCommand,
-} = require('@aws-sdk/lib-dynamodb');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
-const { v4: uuidv4 } = require('uuid');
+  PutItemCommand,
+  DeleteItemCommand,
+} = require("@aws-sdk/client-dynamodb");
 
-const client = new DynamoDBClient({});
-const ddb = DynamoDBDocumentClient.from(client);
-const s3 = new S3Client({});
+const ddb = new DynamoDBClient({});
 
-const WEIGHT_TABLE  = process.env.WEIGHT_TABLE  || 'fitops-weight-logs';
-const MEASURE_TABLE = process.env.MEASURE_TABLE  || 'fitops-measurement-logs';
-const PHOTOS_TABLE  = process.env.PHOTOS_TABLE   || 'fitops-progress-photos';
-const PHOTOS_BUCKET = process.env.PHOTOS_BUCKET  || 'fitops-progress-photos';
+const WEIGHT_TABLE = process.env.WEIGHT_LOGS_TABLE;
+const MEASUREMENTS_TABLE = process.env.MEASUREMENT_LOGS_TABLE;
 
-// ── Weight Logs ───────────────────────────────────────────────────────────────
+const json = (statusCode, body) => ({
+  statusCode,
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify(body),
+});
 
-// GET /users/{userId}/weight
-module.exports.getWeightLogs = async (event) => {
-  const { userId } = event.pathParameters;
-  const result = await ddb.send(new QueryCommand({
-    TableName: WEIGHT_TABLE,
-    KeyConditionExpression: 'userId = :uid',
-    ExpressionAttributeValues: { ':uid': userId },
-    ScanIndexForward: false,
-    Limit: 100,
-  }));
-  return respond(200, result.Items);
-};
-
-// POST /users/{userId}/weight
-module.exports.addWeightLog = async (event) => {
-  const { userId } = event.pathParameters;
-  const { date, weightKg } = JSON.parse(event.body);
-  const item = { userId, date, weightKg, id: uuidv4(), createdAt: new Date().toISOString() };
-  await ddb.send(new PutCommand({ TableName: WEIGHT_TABLE, Item: item }));
-  return respond(201, item);
-};
-
-// DELETE /users/{userId}/weight/{logId}
-module.exports.deleteWeightLog = async (event) => {
-  const { userId, logId } = event.pathParameters;
-  await ddb.send(new DeleteCommand({ TableName: WEIGHT_TABLE, Key: { userId, id: logId } }));
-  return respond(204, {});
-};
-
-// ── Measurement Logs ──────────────────────────────────────────────────────────
-
-// GET /users/{userId}/measurements
-module.exports.getMeasurementLogs = async (event) => {
-  const { userId } = event.pathParameters;
-  const result = await ddb.send(new QueryCommand({
-    TableName: MEASURE_TABLE,
-    KeyConditionExpression: 'userId = :uid',
-    ExpressionAttributeValues: { ':uid': userId },
-    ScanIndexForward: false,
-    Limit: 100,
-  }));
-  return respond(200, result.Items);
-};
-
-// POST /users/{userId}/measurements
-module.exports.addMeasurementLog = async (event) => {
-  const { userId } = event.pathParameters;
-  const body = JSON.parse(event.body);
-  const item = { userId, ...body, id: uuidv4(), createdAt: new Date().toISOString() };
-  await ddb.send(new PutCommand({ TableName: MEASURE_TABLE, Item: item }));
-  return respond(201, item);
-};
-
-// DELETE /users/{userId}/measurements/{logId}
-module.exports.deleteMeasurementLog = async (event) => {
-  const { userId, logId } = event.pathParameters;
-  await ddb.send(new DeleteCommand({ TableName: MEASURE_TABLE, Key: { userId, id: logId } }));
-  return respond(204, {});
-};
-
-// ── Progress Photos ───────────────────────────────────────────────────────────
-
-// GET /users/{userId}/photos
-module.exports.getProgressPhotos = async (event) => {
-  const { userId } = event.pathParameters;
-  const result = await ddb.send(new QueryCommand({
-    TableName: PHOTOS_TABLE,
-    KeyConditionExpression: 'userId = :uid',
-    ExpressionAttributeValues: { ':uid': userId },
-    ScanIndexForward: false,
-    Limit: 100,
-  }));
-  return respond(200, result.Items);
-};
-
-// POST /users/{userId}/photos  (expects multipart OR base64 body)
-module.exports.uploadProgressPhoto = async (event) => {
-  const { userId } = event.pathParameters;
-  const { date, angle, fileBase64, mimeType } = JSON.parse(event.body);
-  const key = `photos/${userId}/${date}/${angle}-${uuidv4()}`;
-  await s3.send(new PutObjectCommand({
-    Bucket: PHOTOS_BUCKET,
-    Key: key,
-    Body: Buffer.from(fileBase64, 'base64'),
-    ContentType: mimeType || 'image/jpeg',
-  }));
-  const photoUrl = `https://${PHOTOS_BUCKET}.s3.amazonaws.com/${key}`;
-  const item = { userId, date, angle, photoUrl, id: uuidv4(), createdAt: new Date().toISOString() };
-  await ddb.send(new PutCommand({ TableName: PHOTOS_TABLE, Item: item }));
-  return respond(201, item);
-};
-
-// DELETE /users/{userId}/photos/{photoId}
-module.exports.deleteProgressPhoto = async (event) => {
-  const { userId, photoId } = event.pathParameters;
-  await ddb.send(new DeleteCommand({ TableName: PHOTOS_TABLE, Key: { userId, id: photoId } }));
-  return respond(204, {});
-};
-
-// ── helpers ───────────────────────────────────────────────────────────────────
-function respond(statusCode, body) {
-  return {
-    statusCode,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-    body: JSON.stringify(body),
-  };
+function getUserId(event) {
+  const claims = event?.requestContext?.authorizer?.jwt?.claims || {};
+  return claims.sub || claims.username || claims.email;
 }
+
+function todayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function toAttr(value) {
+  if (value === null || value === undefined) return { NULL: true };
+  if (typeof value === "number" && Number.isFinite(value)) return { N: String(value) };
+  if (typeof value === "boolean") return { BOOL: value };
+  return { S: String(value) };
+}
+
+function fromAttr(attr) {
+  if (!attr) return undefined;
+  if ("S" in attr) return attr.S;
+  if ("N" in attr) return Number(attr.N);
+  if ("BOOL" in attr) return attr.BOOL;
+  if ("NULL" in attr) return null;
+  return undefined;
+}
+
+function itemToObject(item) {
+  const obj = {};
+  for (const [key, value] of Object.entries(item || {})) {
+    obj[key] = fromAttr(value);
+  }
+  if (obj.date && !obj.id) obj.id = obj.date;
+  return obj;
+}
+
+function parseBody(event) {
+  if (!event.body) return {};
+  try {
+    return JSON.parse(event.body);
+  } catch {
+    return null;
+  }
+}
+
+async function queryByUser(tableName, userId) {
+  const result = await ddb.send(new QueryCommand({
+    TableName: tableName,
+    KeyConditionExpression: "userId = :userId",
+    ExpressionAttributeValues: {
+      ":userId": { S: userId },
+    },
+    ScanIndexForward: false,
+    Limit: 100,
+  }));
+
+  return (result.Items || []).map(itemToObject);
+}
+
+async function putItem(tableName, item) {
+  const dynamoItem = {};
+
+  for (const [key, value] of Object.entries(item)) {
+    if (value !== undefined) {
+      dynamoItem[key] = toAttr(value);
+    }
+  }
+
+  await ddb.send(new PutItemCommand({
+    TableName: tableName,
+    Item: dynamoItem,
+  }));
+
+  return itemToObject(dynamoItem);
+}
+
+async function deleteItem(tableName, userId, date) {
+  await ddb.send(new DeleteItemCommand({
+    TableName: tableName,
+    Key: {
+      userId: { S: userId },
+      date: { S: date },
+    },
+  }));
+
+  return { deleted: true, id: date, date };
+}
+
+exports.handler = async (event) => {
+  try {
+    const userId = getUserId(event);
+
+    if (!userId) {
+      return json(401, { message: "Unauthorized" });
+    }
+
+    const routeKey = event.routeKey;
+    const body = parseBody(event);
+
+    if (body === null) {
+      return json(400, { message: "Invalid JSON body" });
+    }
+
+    if (routeKey === "GET /weight") {
+      return json(200, await queryByUser(WEIGHT_TABLE, userId));
+    }
+
+    if (routeKey === "POST /weight") {
+      const date = body.date || todayIsoDate();
+      const weightKg = Number(body.weightKg);
+
+      if (!date || !Number.isFinite(weightKg) || weightKg <= 0) {
+        return json(400, { message: "date and positive weightKg are required" });
+      }
+
+      const item = {
+        userId,
+        date,
+        id: date,
+        weightKg,
+        createdAt: new Date().toISOString(),
+      };
+
+      return json(200, await putItem(WEIGHT_TABLE, item));
+    }
+
+    if (routeKey === "DELETE /weight/{date}") {
+      const date = event.pathParameters?.date;
+
+      if (!date) {
+        return json(400, { message: "date path parameter is required" });
+      }
+
+      return json(200, await deleteItem(WEIGHT_TABLE, userId, date));
+    }
+
+    if (routeKey === "GET /measurements") {
+      return json(200, await queryByUser(MEASUREMENTS_TABLE, userId));
+    }
+
+    if (routeKey === "POST /measurements") {
+      const date = body.date || todayIsoDate();
+
+      const item = {
+        userId,
+        date,
+        id: date,
+        createdAt: new Date().toISOString(),
+      };
+
+      for (const [key, value] of Object.entries(body)) {
+        if (["userId", "id", "createdAt"].includes(key)) continue;
+        if (key === "date") {
+          item.date = String(value);
+          item.id = String(value);
+          continue;
+        }
+
+        const numeric = Number(value);
+        item[key] = Number.isFinite(numeric) && value !== "" ? numeric : value;
+      }
+
+      return json(200, await putItem(MEASUREMENTS_TABLE, item));
+    }
+
+    if (routeKey === "DELETE /measurements/{date}") {
+      const date = event.pathParameters?.date;
+
+      if (!date) {
+        return json(400, { message: "date path parameter is required" });
+      }
+
+      return json(200, await deleteItem(MEASUREMENTS_TABLE, userId, date));
+    }
+
+    return json(404, { message: "Route not found", routeKey });
+  } catch (err) {
+    console.error("Progress handler error:", err);
+    return json(500, {
+      message: "Internal server error",
+      error: err?.message || String(err),
+    });
+  }
+};

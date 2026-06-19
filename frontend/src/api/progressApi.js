@@ -1,53 +1,83 @@
-/**
- * api/progressApi.js — FRONTEND API CLIENT
- * ─────────────────────────────────────────────────────────────────────────────
- * Runs in the BROWSER. Gets bundled into dist/ by Vite. Goes to S3.
- *
- * Phase 1 (current): calls Base44 SDK directly.
- * Phase 2 (AWS):     replace each body with fetch() calls to API Gateway.
- *   GET    /users/{userId}/weight
- *   POST   /users/{userId}/weight
- *   DELETE /users/{userId}/weight/{logId}
- *   GET    /users/{userId}/measurements
- *   POST   /users/{userId}/measurements
- *   DELETE /users/{userId}/measurements/{logId}
- *   GET    /users/{userId}/photos
- *   POST   /users/{userId}/photos
- *   DELETE /users/{userId}/photos/{photoId}
- * ─────────────────────────────────────────────────────────────────────────────
- */
-
 import { base44 } from '@/api/base44Client';
 
-// ── Weight Logs ───────────────────────────────────────────────────────────────
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-export async function getWeightLogs(userId) {
-  return base44.entities.WeightLog.filter({ userId }, 'date', 100);
+function getAccessToken() {
+  return localStorage.getItem('fitops_cognito_access_token');
 }
 
-export async function addWeightLog(userId, date, weightKg) {
-  return base44.entities.WeightLog.create({ userId, date, weightKg });
+async function apiRequest(path, options = {}) {
+  const token = getAccessToken();
+
+  if (!API_BASE_URL) {
+    throw new Error('VITE_API_BASE_URL is not configured.');
+  }
+
+  if (!token) {
+    throw new Error('Missing Cognito access token.');
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      'content-type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...(options.headers || {}),
+    },
+  });
+
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    throw new Error(data?.message || `API request failed: ${response.status}`);
+  }
+
+  return data;
+}
+
+// ── Weight Logs: AWS-native ──────────────────────────────────────────────────
+
+export async function getWeightLogs(_userId) {
+  return apiRequest('/weight');
+}
+
+export async function addWeightLog(_userId, date, weightKg) {
+  return apiRequest('/weight', {
+    method: 'POST',
+    body: JSON.stringify({
+      date,
+      weightKg: Number(weightKg),
+    }),
+  });
 }
 
 export async function deleteWeightLog(logId) {
-  return base44.entities.WeightLog.delete(logId);
+  return apiRequest(`/weight/${encodeURIComponent(logId)}`, {
+    method: 'DELETE',
+  });
 }
 
-// ── Measurement Logs ──────────────────────────────────────────────────────────
+// ── Measurement Logs: AWS-native ─────────────────────────────────────────────
 
-export async function getMeasurementLogs(userId) {
-  return base44.entities.MeasurementLog.filter({ userId }, 'date', 100);
+export async function getMeasurementLogs(_userId) {
+  return apiRequest('/measurements');
 }
 
-export async function addMeasurementLog(userId, data) {
-  return base44.entities.MeasurementLog.create({ userId, ...data });
+export async function addMeasurementLog(_userId, data) {
+  return apiRequest('/measurements', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
 
 export async function deleteMeasurementLog(logId) {
-  return base44.entities.MeasurementLog.delete(logId);
+  return apiRequest(`/measurements/${encodeURIComponent(logId)}`, {
+    method: 'DELETE',
+  });
 }
 
-// ── Progress Photos ───────────────────────────────────────────────────────────
+// ── Progress Photos: still legacy until S3/presigned URL phase ───────────────
 
 export async function getProgressPhotos(userId) {
   return base44.entities.ProgressPhoto.filter({ userId }, '-date', 100);

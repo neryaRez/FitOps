@@ -25,27 +25,44 @@ export default function Dashboard() {
       getRecommendation(user.email),
     ]);
     setProfile(p);
-    setWeightLogs(wl || []);
+    setWeightLogs(Array.isArray(wl) ? wl : []);
     setRecommendation(rec);
     setLoading(false);
   };
 
   useEffect(() => { if (user) load(); }, [user]);
 
-  const latestWeight = weightLogs.length > 0
-    ? [...weightLogs].sort((a, b) => new Date(b.date) - new Date(a.date))[0]
+  const numericWeightLogs = (Array.isArray(weightLogs) ? weightLogs : [])
+    .map((log) => ({
+      ...log,
+      weightKg: Number(log.weightKg),
+    }))
+    .filter((log) => Number.isFinite(log.weightKg) && log.date);
+
+  const latestWeight = numericWeightLogs.length > 0
+    ? [...numericWeightLogs].sort((a, b) => new Date(b.date) - new Date(a.date))[0]
     : null;
 
-  const goalProgress = profile && latestWeight
+  const startingWeightKg = Number(profile?.startingWeightKg);
+  const goalWeightKg = Number(profile?.goalWeightKg);
+  const latestWeightKg = Number(latestWeight?.weightKg);
+
+  const hasValidGoalProgress =
+    Number.isFinite(startingWeightKg) &&
+    Number.isFinite(goalWeightKg) &&
+    Number.isFinite(latestWeightKg) &&
+    startingWeightKg !== goalWeightKg;
+
+  const goalProgress = hasValidGoalProgress
     ? Math.max(0, Math.min(100, Math.round(
-        ((profile.startingWeightKg - latestWeight.weightKg) /
-         (profile.startingWeightKg - profile.goalWeightKg)) * 100
+        ((startingWeightKg - latestWeightKg) /
+         (startingWeightKg - goalWeightKg)) * 100
       )))
     : 0;
 
   const bmiData = profile ? analyzeBMI(profile) : null;
 
-  const streak = weightLogs.length;
+  const streak = numericWeightLogs.length;
 
   if (loading) {
     return (
@@ -87,7 +104,7 @@ export default function Dashboard() {
       {/* Stats grid */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard label="Current weight" value={latestWeight?.weightKg ?? profile.startingWeightKg} unit="kg" icon={Scale} gradient="from-blue-500 to-cyan-400" />
-        <StatCard label="Goal weight" value={profile.goalWeightKg} unit="kg" icon={Target} gradient="from-purple-500 to-pink-400" />
+        <StatCard label="Goal weight" value={goalWeightKg} unit="kg" icon={Target} gradient="from-purple-500 to-pink-400" />
         <StatCard label="Goal progress" value={`${goalProgress}%`} icon={Activity} gradient="from-green-500 to-emerald-400" />
         <StatCard label="BMI" value={bmiData?.bmi} icon={BarChart2} gradient="from-orange-400 to-yellow-400" />
         <StatCard label="Total logs" value={streak} icon={Zap} gradient="from-rose-500 to-pink-400" />
@@ -106,7 +123,7 @@ export default function Dashboard() {
           </div>
           <div className="flex justify-between mt-2 text-xs text-white/40">
             <span>Start: {profile.startingWeightKg} kg</span>
-            <span>Goal: {profile.goalWeightKg} kg</span>
+            <span>Goal: {goalWeightKg} kg</span>
           </div>
         </div>
       )}

@@ -46,3 +46,10 @@ resource "aws_lambda_function" "this" {
 
   tags = var.tags
 }
+
+resource "aws_iam_role_policy" "inline" {
+  count  = var.inline_policy_json == null ? 0 : 1
+  name   = "${var.function_name}-inline-policy"
+  role   = aws_iam_role.lambda_role.id
+  policy = var.inline_policy_json
+}

@@ -20,6 +20,73 @@ module "me_lambda" {
   tags = local.common_tags
 }
 
+module "users_lambda" {
+  source = "../../modules/compute/lambda-function"
+
+  function_name = "${local.name_prefix}-users"
+  handler       = "handler.handler"
+  runtime       = "nodejs20.x"
+  source_file   = abspath("${path.root}/../../../../backend/functions/users/handler.js")
+
+  environment_variables = {
+    PROFILES_TABLE = module.user_profiles_table.table_name
+  }
+
+  inline_policy_json = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "UserProfilesTableAccess"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem"
+        ]
+        Resource = module.user_profiles_table.table_arn
+      }
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+
+module "progress_lambda" {
+  source = "../../modules/compute/lambda-function"
+
+  function_name = "${local.name_prefix}-progress"
+  handler       = "handler.handler"
+  runtime       = "nodejs20.x"
+  source_file   = abspath("${path.root}/../../../../backend/functions/progress/handler.js")
+
+  environment_variables = {
+    WEIGHT_LOGS_TABLE      = module.weight_logs_table.table_name
+    MEASUREMENT_LOGS_TABLE = module.measurement_logs_table.table_name
+  }
+
+  inline_policy_json = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ProgressTablesAccess"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:Query",
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem"
+        ]
+        Resource = [
+          module.weight_logs_table.table_arn,
+          module.measurement_logs_table.table_arn
+        ]
+      }
+    ]
+  })
+
+  tags = local.common_tags
+}
+
 module "http_api" {
   source = "../../modules/compute/api-gateway-http"
 
@@ -45,6 +112,71 @@ module "http_api" {
       lambda_invoke_arn    = module.me_lambda.invoke_arn
       lambda_function_arn  = module.me_lambda.function_arn
       lambda_function_name = module.me_lambda.function_name
+      authorizer_required  = true
+    }
+
+    profile_get = {
+      route_key            = "GET /profile"
+      lambda_invoke_arn    = module.users_lambda.invoke_arn
+      lambda_function_arn  = module.users_lambda.function_arn
+      lambda_function_name = module.users_lambda.function_name
+      authorizer_required  = true
+    }
+
+    profile_put = {
+      route_key            = "PUT /profile"
+      lambda_invoke_arn    = module.users_lambda.invoke_arn
+      lambda_function_arn  = module.users_lambda.function_arn
+      lambda_function_name = module.users_lambda.function_name
+      authorizer_required  = true
+    }
+
+
+    weight_get = {
+      route_key            = "GET /weight"
+      lambda_invoke_arn    = module.progress_lambda.invoke_arn
+      lambda_function_arn  = module.progress_lambda.function_arn
+      lambda_function_name = module.progress_lambda.function_name
+      authorizer_required  = true
+    }
+
+    weight_post = {
+      route_key            = "POST /weight"
+      lambda_invoke_arn    = module.progress_lambda.invoke_arn
+      lambda_function_arn  = module.progress_lambda.function_arn
+      lambda_function_name = module.progress_lambda.function_name
+      authorizer_required  = true
+    }
+
+    weight_delete = {
+      route_key            = "DELETE /weight/{date}"
+      lambda_invoke_arn    = module.progress_lambda.invoke_arn
+      lambda_function_arn  = module.progress_lambda.function_arn
+      lambda_function_name = module.progress_lambda.function_name
+      authorizer_required  = true
+    }
+
+    measurements_get = {
+      route_key            = "GET /measurements"
+      lambda_invoke_arn    = module.progress_lambda.invoke_arn
+      lambda_function_arn  = module.progress_lambda.function_arn
+      lambda_function_name = module.progress_lambda.function_name
+      authorizer_required  = true
+    }
+
+    measurements_post = {
+      route_key            = "POST /measurements"
+      lambda_invoke_arn    = module.progress_lambda.invoke_arn
+      lambda_function_arn  = module.progress_lambda.function_arn
+      lambda_function_name = module.progress_lambda.function_name
+      authorizer_required  = true
+    }
+
+    measurements_delete = {
+      route_key            = "DELETE /measurements/{date}"
+      lambda_invoke_arn    = module.progress_lambda.invoke_arn
+      lambda_function_arn  = module.progress_lambda.function_arn
+      lambda_function_name = module.progress_lambda.function_name
       authorizer_required  = true
     }
   }

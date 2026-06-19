@@ -23,13 +23,41 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://YOUR_API_GATEWAY_U
 // ── Pure helper: BMI calculation (always runs client-side, no network) ────────
 
 export function analyzeBMI(profile) {
-  const heightM = profile.heightCm / 100;
-  const bmi = profile.startingWeightKg / (heightM * heightM);
+  const weightKg = Number(profile?.startingWeightKg);
+  const rawHeight = Number(profile?.heightCm);
+
+  let heightCm = rawHeight;
+
+  // Accept common user inputs:
+  // 175   => centimeters
+  // 1.75  => meters
+  // 17.5  => likely 175cm entered with misplaced decimal
+  if (Number.isFinite(rawHeight)) {
+    if (rawHeight > 0 && rawHeight < 3) {
+      heightCm = rawHeight * 100;
+    } else if (rawHeight >= 3 && rawHeight < 30) {
+      heightCm = rawHeight * 10;
+    }
+  }
+
+  const heightM = heightCm / 100;
+
+  if (
+    !Number.isFinite(weightKg) ||
+    !Number.isFinite(heightM) ||
+    heightM <= 0
+  ) {
+    return { bmi: 0, category: 'Unknown' };
+  }
+
+  const bmi = weightKg / (heightM * heightM);
   const bmiRounded = Math.round(bmi * 10) / 10;
+
   let category = 'Normal weight';
   if (bmi < 18.5) category = 'Underweight';
   else if (bmi >= 25 && bmi < 30) category = 'Overweight';
   else if (bmi >= 30) category = 'Obese';
+
   return { bmi: bmiRounded, category };
 }
 
