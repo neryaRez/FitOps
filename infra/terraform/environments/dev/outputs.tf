@@ -107,3 +107,7 @@ output "cognito_logout_url" {
   description = "Frontend Cognito logout URL."
   value       = local.frontend_base_url
 }
+output "ai_chat_conversations_table_name" {
+  description = "DynamoDB table name for AI coach chat conversations."
+  value       = module.ai_chat_conversations_table.table_name
+}

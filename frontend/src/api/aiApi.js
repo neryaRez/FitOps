@@ -1,26 +1,36 @@
-/**
- * api/aiApi.js — FRONTEND AI API CLIENT
- * ─────────────────────────────────────────────────────────────────────────────
- * MIGRATION GUIDE (when going to production / AWS):
- *
- *   Step 1: Set USE_REAL_API = true
- *   Step 2: Set API_BASE_URL to your API Gateway URL
- *
- *   That's it. All function signatures stay identical.
- *   The Lambda functions in backend/functions/ai/handler.js mirror this exactly.
- * ─────────────────────────────────────────────────────────────────────────────
- */
-
 import { base44 } from '@/api/base44Client';
 
-// ─── MIGRATION SWITCHES ───────────────────────────────────────────────────────
-// Phase 1 → Phase 2: flip USE_REAL_API to true and set your API Gateway URL.
-const USE_REAL_API = false;
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://YOUR_API_GATEWAY_URL/prod';
-// ─────────────────────────────────────────────────────────────────────────────
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
+function getAccessToken() {
+  return localStorage.getItem('fitops_cognito_access_token');
+}
 
-// ── Pure helper: BMI calculation (always runs client-side, no network) ────────
+async function apiRequest(path, options = {}) {
+  const token = getAccessToken();
+
+  if (!API_BASE_URL || !token) {
+    return null;
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      'content-type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...(options.headers || {}),
+    },
+  });
+
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    throw new Error(data?.message || data?.error || `API request failed: ${response.status}`);
+  }
+
+  return data;
+}
 
 export function analyzeBMI(profile) {
   const weightKg = Number(profile?.startingWeightKg);
@@ -28,10 +38,6 @@ export function analyzeBMI(profile) {
 
   let heightCm = rawHeight;
 
-  // Accept common user inputs:
-  // 175   => centimeters
-  // 1.75  => meters
-  // 17.5  => likely 175cm entered with misplaced decimal
   if (Number.isFinite(rawHeight)) {
     if (rawHeight > 0 && rawHeight < 3) {
       heightCm = rawHeight * 100;
@@ -61,48 +67,68 @@ export function analyzeBMI(profile) {
   return { bmi: bmiRounded, category };
 }
 
+async function getBase44Recommendation(userId) {
+  const results = await base44.entities.AIRecommendation.filter({ userId });
+  return results?.[0] || null;
+}
 
-// ── requestAnalysis ───────────────────────────────────────────────────────────
-// Phase 1: generates stub text using Base44 InvokeLLM.
-// Phase 2: POST {profile, weightLogs, measurementLogs} → API Gateway → Lambda → OpenAI.
+async function saveBase44Recommendation(userId, payload) {
+  const existing = await base44.entities.AIRecommendation.filter({ userId });
 
-export async function requestAnalysis(userId, profile, weightLogs = [], measurementLogs = []) {
-  if (USE_REAL_API) {
-    // ── PHASE 2 (uncomment when API key is in SSM and Lambda is deployed) ──
-    // const res = await fetch(`${API_BASE_URL}/users/${userId}/insights/generate`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getJwtToken()}` },
-    //   body: JSON.stringify({ profile, weightLogs, measurementLogs }),
-    // });
-    // return res.json();
+  if (existing?.length > 0) {
+    return base44.entities.AIRecommendation.update(existing[0].id, payload);
   }
 
-  // ── PHASE 1: Base44 InvokeLLM (current) ──────────────────────────────────
-  const { bmi, category } = analyzeBMI(profile);
-  const logsCount = (weightLogs?.length || 0) + (measurementLogs?.length || 0);
+  return base44.entities.AIRecommendation.create(payload);
+}
+
+export async function requestAnalysis(userId, profile, weightLogs = [], measurementLogs = []) {
+  try {
+    const awsResult = await apiRequest('/ai/recommendation/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        profile,
+        weightLogs,
+        measurementLogs,
+      }),
+    });
+
+    if (awsResult) {
+      return awsResult;
+    }
+  } catch (err) {
+    console.warn('AWS AI generation failed, falling back to Base44:', err);
+  }
+
+  const bmi = analyzeBMI(profile);
 
   const result = await base44.integrations.Core.InvokeLLM({
     prompt: `
-You are a professional fitness coach and nutritionist. Generate personalized insights for this user:
+You are a fitness and nutrition coach.
+Generate practical, encouraging recommendations.
 
-Profile:
-- Name: ${profile.name}
-- Age: ${profile.age}, Sex: ${profile.sex}
-- Height: ${profile.heightCm}cm, Starting weight: ${profile.startingWeightKg}kg, Goal weight: ${profile.goalWeightKg}kg
-- BMI: ${bmi} (${category})
-- Activity level: ${profile.activityLevel}
-- Primary goal: ${profile.primaryGoal}
-- Total progress entries logged: ${logsCount}
+User profile:
+${JSON.stringify(profile, null, 2)}
 
-Write concise, motivating, actionable insights for each section. Be specific to their numbers.
+BMI:
+${JSON.stringify(bmi, null, 2)}
+
+Weight logs:
+${JSON.stringify(weightLogs || [], null, 2)}
+
+Measurement logs:
+${JSON.stringify(measurementLogs || [], null, 2)}
+
+Return concise recommendations.
+Be specific to their numbers.
     `.trim(),
     response_json_schema: {
       type: 'object',
       properties: {
-        bmiAnalysis:      { type: 'string' },
-        fitnessPath:      { type: 'string' },
-        mealGuidance:     { type: 'string' },
-        workoutPlan:      { type: 'string' },
+        bmiAnalysis: { type: 'string' },
+        fitnessPath: { type: 'string' },
+        mealGuidance: { type: 'string' },
+        workoutPlan: { type: 'string' },
         progressInsights: { type: 'string' },
       },
     },
@@ -111,34 +137,33 @@ Write concise, motivating, actionable insights for each section. Be specific to 
   const payload = {
     userId,
     generatedAt: new Date().toISOString(),
-    bmiAnalysis:      result.bmiAnalysis,
-    fitnessPath:      result.fitnessPath,
-    mealGuidance:     result.mealGuidance,
-    workoutPlan:      result.workoutPlan,
+    bmiAnalysis: result.bmiAnalysis,
+    fitnessPath: result.fitnessPath,
+    mealGuidance: result.mealGuidance,
+    workoutPlan: result.workoutPlan,
     progressInsights: result.progressInsights,
     status: 'ready',
   };
 
-  const existing = await base44.entities.AIRecommendation.filter({ userId });
-  if (existing?.length > 0) return base44.entities.AIRecommendation.update(existing[0].id, payload);
-  return base44.entities.AIRecommendation.create(payload);
+  return saveBase44Recommendation(userId, payload);
 }
 
-
-// ── getRecommendation ─────────────────────────────────────────────────────────
-// Phase 1: reads from Base44 entity store.
-// Phase 2: GET → API Gateway → Lambda → DynamoDB.
-
 export async function getRecommendation(userId) {
-  if (USE_REAL_API) {
-    // ── PHASE 2 ──
-    // const res = await fetch(`${API_BASE_URL}/users/${userId}/insights`, {
-    //   headers: { Authorization: `Bearer ${getJwtToken()}` },
-    // });
-    // return res.json();
+  try {
+    const awsResult = await apiRequest('/ai/recommendation');
+
+    if (
+      awsResult &&
+      awsResult.bmiAnalysis &&
+      awsResult.fitnessPath &&
+      awsResult.mealGuidance &&
+      awsResult.workoutPlan
+    ) {
+      return awsResult;
+    }
+  } catch (err) {
+    console.warn('AWS AI recommendation failed, falling back to Base44:', err);
   }
 
-  // ── PHASE 1 ──
-  const results = await base44.entities.AIRecommendation.filter({ userId });
-  return results[0] || null;
+  return getBase44Recommendation(userId);
 }

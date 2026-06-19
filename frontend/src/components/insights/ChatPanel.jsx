@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Send, MessageCircle, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { base44 } from '@/api/base44Client';
+import { sendCoachMessage } from '@/api/coachChatApi';
 
 const mdClass = `prose prose-invert prose-sm max-w-none
   [&>p]:mb-2 [&>p:last-child]:mb-0
@@ -13,7 +13,7 @@ const mdClass = `prose prose-invert prose-sm max-w-none
   [&>table_td]:border [&>table_td]:border-white/10 [&>table_td]:px-2 [&>table_td]:py-1
   [&>table_th]:border [&>table_th]:border-white/10 [&>table_th]:px-2 [&>table_th]:py-1 [&>table_th]:bg-white/10`;
 
-export default function ChatPanel({ conversation }) {
+export default function ChatPanel({ conversation, onConversationUpdated }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -21,28 +21,33 @@ export default function ChatPanel({ conversation }) {
   const unsubRef = useRef(null);
 
   useEffect(() => {
-    if (!conversation) return;
-    setMessages(conversation.messages || []);
-
-    // Unsubscribe from old, subscribe to new
-    if (unsubRef.current) unsubRef.current();
-    unsubRef.current = base44.agents.subscribeToConversation(conversation.id, (data) => {
-      setMessages(data.messages || []);
-    });
-    return () => { if (unsubRef.current) unsubRef.current(); };
-  }, [conversation?.id]);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    setMessages(Array.isArray(conversation?.messages) ? conversation.messages : []);
+  }, [conversation?.id, conversation?.messages]);
 
   const handleSend = async () => {
     const text = input.trim();
     if (!text || !conversation || sending) return;
+
     setInput('');
     setSending(true);
-    await base44.agents.addMessage(conversation, { role: 'user', content: text });
-    setSending(false);
+
+    const optimisticMessage = {
+      id: `local-${Date.now()}`,
+      role: 'user',
+      content: text,
+      created_date: new Date().toISOString(),
+    };
+
+    setMessages(prev => [...prev, optimisticMessage]);
+
+    try {
+      const updatedConversation = await sendCoachMessage(conversation.id, text);
+      setMessages(Array.isArray(updatedConversation?.messages) ? updatedConversation.messages : []);
+    } catch (err) {
+      console.error('Failed to send coach message:', err);
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleKeyDown = (e) => {

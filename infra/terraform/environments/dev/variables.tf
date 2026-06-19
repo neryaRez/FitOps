@@ -26,3 +26,8 @@ variable "github_oidc_provider_arn" {
   type        = string
   default     = null
 }
+variable "bedrock_model_id" {
+  description = "Amazon Bedrock model ID used for AI insights generation."
+  type        = string
+  default     = "amazon.nova-lite-v1:0"
+}

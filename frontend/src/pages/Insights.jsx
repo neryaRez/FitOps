@@ -27,17 +27,37 @@ export default function Insights() {
 
   const load = async () => {
     if (!user) return;
-    const [rec, convos] = await Promise.all([
-      getRecommendation(user.email),
-      base44.agents.listConversations({ agent_name: 'fitops_coach' }),
-    ]);
-    setRecommendation(rec);
-    const mine = (convos || [])
-      .filter(c => c.metadata?.userId === user.email)
-      .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))
-      .slice(0, 3);
-    setRecentConvos(mine);
-    setLoading(false);
+
+    try {
+      const [rec, convosResult] = await Promise.all([
+        getRecommendation(user.email),
+        base44.agents.listConversations({ agent_name: 'fitops_coach' }),
+      ]);
+
+      setRecommendation(rec);
+
+      const convos = Array.isArray(convosResult)
+        ? convosResult
+        : Array.isArray(convosResult?.items)
+          ? convosResult.items
+          : Array.isArray(convosResult?.data)
+            ? convosResult.data
+            : Array.isArray(convosResult?.conversations)
+              ? convosResult.conversations
+              : [];
+
+      const mine = convos
+        .filter(c => c?.metadata?.userId === user.email)
+        .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))
+        .slice(0, 3);
+
+      setRecentConvos(mine);
+    } catch (err) {
+      console.error('Failed to load AI insights:', err);
+      setRecentConvos([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { if (user) load(); }, [user]);

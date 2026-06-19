@@ -1,8 +1,18 @@
 import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { listCoachConversations, createCoachConversation, getCoachConversation } from '@/api/coachChatApi';
 import ConversationSidebar from './ConversationSidebar';
 import ChatPanel from './ChatPanel';
+
+
+function normalizeConversations(result) {
+  if (Array.isArray(result)) return result;
+  if (Array.isArray(result?.items)) return result.items;
+  if (Array.isArray(result?.data)) return result.data;
+  if (Array.isArray(result?.conversations)) return result.conversations;
+  return [];
+}
+
 
 export default function CoachChat({ userId }) {
   const [conversations, setConversations] = useState([]);
@@ -15,29 +25,39 @@ export default function CoachChat({ userId }) {
 
   const loadConversations = async () => {
     setLoading(true);
-    const convos = await base44.agents.listConversations({ agent_name: 'fitops_coach' });
-    const mine = (convos || []).filter(c => c.metadata?.userId === userId)
-      .sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
-    setConversations(mine);
-    if (mine.length > 0 && !activeConversation) {
-      const full = await base44.agents.getConversation(mine[0].id);
-      setActiveConversation(full);
+
+    try {
+      const convosResult = await listCoachConversations();
+      const convos = normalizeConversations(convosResult);
+
+      // AWS backend already returns only the authenticated user's conversations.
+      // Do not filter by metadata.userId here because Cognito sub may differ from email.
+      const mine = convos
+        .sort((a, b) => new Date(b.updated_date || b.created_date || 0) - new Date(a.updated_date || a.created_date || 0));
+
+      setConversations(mine);
+
+      if (mine.length > 0 && !activeConversation) {
+        const full = await getCoachConversation(mine[0].id);
+        setActiveConversation(full);
+      }
+    } catch (err) {
+      console.error('Failed to load coach conversations:', err);
+      setConversations([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleNew = async () => {
     const num = conversations.length + 1;
-    const conv = await base44.agents.createConversation({
-      agent_name: 'fitops_coach',
-      metadata: { userId, title: `Session #${num}` },
-    });
+    const conv = await createCoachConversation(`Session #${num}`);
     setConversations(prev => [conv, ...prev]);
     setActiveConversation(conv);
   };
 
   const handleSelect = async (conv) => {
-    const full = await base44.agents.getConversation(conv.id);
+    const full = await getCoachConversation(conv.id);
     setActiveConversation(full);
   };
 
@@ -47,13 +67,25 @@ export default function CoachChat({ userId }) {
     if (activeConversation?.id === convId) {
       const remaining = conversations.filter(c => c.id !== convId);
       if (remaining.length > 0) {
-        const full = await base44.agents.getConversation(remaining[0].id);
+        const full = await getCoachConversation(remaining[0].id);
         setActiveConversation(full);
       } else {
         setActiveConversation(null);
       }
     }
     // Note: base44 doesn't expose a deleteConversation — we just hide it from UI
+  };
+
+  const handleConversationUpdated = async (fullConversation) => {
+    if (fullConversation?.id) {
+      setActiveConversation(fullConversation);
+    }
+
+    try {
+      await loadConversations();
+    } catch (err) {
+      console.error('Failed to refresh conversations after message:', err);
+    }
   };
 
   if (loading) {
@@ -79,7 +111,7 @@ export default function CoachChat({ userId }) {
 
       {/* Chat panel */}
       <div className="flex-1 min-w-0">
-        <ChatPanel conversation={activeConversation} />
+        <ChatPanel conversation={activeConversation} onConversationUpdated={handleConversationUpdated} />
       </div>
     </div>
   );

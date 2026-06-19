@@ -1,0 +1,336 @@
+const {
+  DynamoDBClient,
+  GetItemCommand,
+  PutItemCommand,
+  QueryCommand,
+} = require("@aws-sdk/client-dynamodb");
+
+const {
+  BedrockRuntimeClient,
+  ConverseCommand,
+} = require("@aws-sdk/client-bedrock-runtime");
+
+const ddb = new DynamoDBClient({});
+const bedrock = new BedrockRuntimeClient({});
+
+const PROFILES_TABLE = process.env.PROFILES_TABLE;
+const WEIGHT_LOGS_TABLE = process.env.WEIGHT_LOGS_TABLE;
+const MEASUREMENT_LOGS_TABLE = process.env.MEASUREMENT_LOGS_TABLE;
+const AI_RECOMMENDATIONS_TABLE = process.env.AI_RECOMMENDATIONS_TABLE;
+const BEDROCK_MODEL_ID = process.env.BEDROCK_MODEL_ID || "amazon.nova-lite-v1:0";
+
+const json = (statusCode, body) => ({
+  statusCode,
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify(body),
+});
+
+function getUserId(event) {
+  const claims = event?.requestContext?.authorizer?.jwt?.claims || {};
+  return claims.sub || claims.username || claims.email;
+}
+
+function parseBody(event) {
+  if (!event.body) return {};
+  try {
+    return JSON.parse(event.body);
+  } catch {
+    return null;
+  }
+}
+
+function fromAttr(attr) {
+  if (!attr) return undefined;
+  if ("S" in attr) return attr.S;
+  if ("N" in attr) return Number(attr.N);
+  if ("BOOL" in attr) return attr.BOOL;
+  if ("NULL" in attr) return null;
+  return undefined;
+}
+
+function itemToObject(item) {
+  const obj = {};
+  for (const [key, value] of Object.entries(item || {})) {
+    obj[key] = fromAttr(value);
+  }
+  return obj;
+}
+
+function toAttr(value) {
+  if (value === null || value === undefined) return { NULL: true };
+  if (typeof value === "number" && Number.isFinite(value)) return { N: String(value) };
+  if (typeof value === "boolean") return { BOOL: value };
+  return { S: String(value) };
+}
+
+async function getByUserId(tableName, userId) {
+  const result = await ddb.send(new GetItemCommand({
+    TableName: tableName,
+    Key: {
+      userId: { S: userId },
+    },
+  }));
+
+  return result.Item ? itemToObject(result.Item) : null;
+}
+
+async function queryByUser(tableName, userId, limit = 25) {
+  const result = await ddb.send(new QueryCommand({
+    TableName: tableName,
+    KeyConditionExpression: "userId = :userId",
+    ExpressionAttributeValues: {
+      ":userId": { S: userId },
+    },
+    ScanIndexForward: false,
+    Limit: limit,
+  }));
+
+  return (result.Items || []).map(itemToObject);
+}
+
+async function saveRecommendation(payload) {
+  const item = {};
+
+  for (const [key, value] of Object.entries(payload)) {
+    item[key] = toAttr(value);
+  }
+
+  await ddb.send(new PutItemCommand({
+    TableName: AI_RECOMMENDATIONS_TABLE,
+    Item: item,
+  }));
+
+  return payload;
+}
+
+function normalizeHeightCm(rawHeight) {
+  const n = Number(rawHeight);
+
+  if (!Number.isFinite(n) || n <= 0) return null;
+  if (n > 0 && n < 3) return n * 100;
+  if (n >= 3 && n < 30) return n * 10;
+
+  return n;
+}
+
+function calculateBMI(profile, weightLogs) {
+  const latestWeight =
+    Array.isArray(weightLogs) && weightLogs.length > 0
+      ? Number(weightLogs[0].weightKg)
+      : Number(profile?.startingWeightKg);
+
+  const heightCm = normalizeHeightCm(profile?.heightCm);
+  const heightM = heightCm ? heightCm / 100 : null;
+
+  if (!Number.isFinite(latestWeight) || !heightM || heightM <= 0) {
+    return { bmi: null, category: "Unknown", weightKg: latestWeight || null, heightCm };
+  }
+
+  const bmi = latestWeight / (heightM * heightM);
+  const bmiRounded = Math.round(bmi * 10) / 10;
+
+  let category = "Normal weight";
+  if (bmi < 18.5) category = "Underweight";
+  else if (bmi >= 25 && bmi < 30) category = "Overweight";
+  else if (bmi >= 30) category = "Obese";
+
+  return {
+    bmi: bmiRounded,
+    category,
+    weightKg: latestWeight,
+    heightCm,
+  };
+}
+
+function compactLogs(logs, fields) {
+  return (logs || []).slice(0, 10).map((log) => {
+    const out = {};
+    for (const field of fields) {
+      if (log[field] !== undefined) out[field] = log[field];
+    }
+    return out;
+  });
+}
+
+function buildPrompt({ profile, weightLogs, measurementLogs }) {
+  const bmi = calculateBMI(profile, weightLogs);
+
+  const safeProfile = {
+    name: profile?.name || "User",
+    age: profile?.age,
+    sex: profile?.sex,
+    heightCm: bmi.heightCm,
+    startingWeightKg: profile?.startingWeightKg,
+    currentWeightKg: bmi.weightKg,
+    goalWeightKg: profile?.goalWeightKg,
+    activityLevel: profile?.activityLevel,
+    primaryGoal: profile?.primaryGoal,
+    dietaryPreference: profile?.dietaryPreference,
+    workoutPreference: profile?.workoutPreference,
+    bmi: bmi.bmi,
+    bmiCategory: bmi.category,
+  };
+
+  const recentWeights = compactLogs(weightLogs, ["date", "weightKg"]);
+
+  const recentMeasurements = compactLogs(measurementLogs, [
+    "date",
+    "waist",
+    "neck",
+    "chest",
+    "hips",
+    "leftArm",
+    "rightArm",
+    "leftThigh",
+    "rightThigh",
+  ]);
+
+  return [
+    "You are FitOps AI, a careful fitness and nutrition assistant.",
+    "",
+    "Generate concise, motivating, practical fitness insights for the user.",
+    "Do not diagnose medical conditions.",
+    "Do not promise medical outcomes.",
+    "Do not recommend extreme diets.",
+    "Use the user's real numbers when useful.",
+    "Return ONLY valid JSON. No markdown. No extra text.",
+    "",
+    "Required JSON shape:",
+    "{",
+    "  \"bmiAnalysis\": \"string\",",
+    "  \"fitnessPath\": \"string\",",
+    "  \"mealGuidance\": \"string\",",
+    "  \"workoutPlan\": \"string\",",
+    "  \"progressInsights\": \"string\"",
+    "}",
+    "",
+    "User profile:",
+    JSON.stringify(safeProfile, null, 2),
+    "",
+    "Recent weight logs:",
+    JSON.stringify(recentWeights, null, 2),
+    "",
+    "Recent measurement logs:",
+    JSON.stringify(recentMeasurements, null, 2),
+  ].join("\n");
+}
+
+function extractTextFromConverse(response) {
+  const content = response?.output?.message?.content || [];
+  return content.map((part) => part.text || "").join("\n").trim();
+}
+
+function parseModelJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+
+    if (start !== -1 && end !== -1 && end > start) {
+      return JSON.parse(text.slice(start, end + 1));
+    }
+
+    throw new Error("Bedrock response was not valid JSON");
+  }
+}
+
+function normalizeRecommendation(raw) {
+  return {
+    bmiAnalysis: String(raw?.bmiAnalysis || "No BMI analysis was generated."),
+    fitnessPath: String(raw?.fitnessPath || "No fitness path was generated."),
+    mealGuidance: String(raw?.mealGuidance || "No meal guidance was generated."),
+    workoutPlan: String(raw?.workoutPlan || "No workout plan was generated."),
+    progressInsights: String(raw?.progressInsights || "No progress insights were generated."),
+  };
+}
+
+async function generateWithBedrock(prompt) {
+  const response = await bedrock.send(new ConverseCommand({
+    modelId: BEDROCK_MODEL_ID,
+    messages: [
+      {
+        role: "user",
+        content: [{ text: prompt }],
+      },
+    ],
+    inferenceConfig: {
+      maxTokens: 900,
+      temperature: 0.4,
+    },
+  }));
+
+  const text = extractTextFromConverse(response);
+  const parsed = parseModelJson(text);
+
+  return normalizeRecommendation(parsed);
+}
+
+exports.handler = async (event) => {
+  try {
+    const userId = getUserId(event);
+
+    if (!userId) {
+      return json(401, { message: "Unauthorized" });
+    }
+
+    const routeKey = event.routeKey;
+    const body = parseBody(event);
+
+    if (body === null) {
+      return json(400, { message: "Invalid JSON body" });
+    }
+
+    if (routeKey === "GET /ai/recommendation") {
+      const existing = await getByUserId(AI_RECOMMENDATIONS_TABLE, userId);
+      return json(200, existing);
+    }
+
+    if (routeKey === "POST /ai/recommendation/generate") {
+      const [storedProfile, weightLogs, measurementLogs] = await Promise.all([
+        getByUserId(PROFILES_TABLE, userId),
+        queryByUser(WEIGHT_LOGS_TABLE, userId, 25),
+        queryByUser(MEASUREMENT_LOGS_TABLE, userId, 25),
+      ]);
+
+      const profile = storedProfile || body.profile;
+
+      if (!profile) {
+        return json(400, {
+          message: "Profile is required before generating AI insights.",
+        });
+      }
+
+      const prompt = buildPrompt({
+        profile,
+        weightLogs: weightLogs.length ? weightLogs : (body.weightLogs || []),
+        measurementLogs: measurementLogs.length ? measurementLogs : (body.measurementLogs || []),
+      });
+
+      const recommendation = await generateWithBedrock(prompt);
+
+      const payload = {
+        userId,
+        id: userId,
+        generatedAt: new Date().toISOString(),
+        status: "ready",
+        modelId: BEDROCK_MODEL_ID,
+        ...recommendation,
+      };
+
+      return json(200, await saveRecommendation(payload));
+    }
+
+    return json(404, {
+      message: "Route not found",
+      routeKey,
+    });
+  } catch (err) {
+    console.error("AI handler error:", err);
+
+    return json(500, {
+      message: "Internal server error",
+      error: err?.message || String(err),
+    });
+  }
+};

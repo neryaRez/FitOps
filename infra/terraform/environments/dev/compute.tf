@@ -226,6 +226,56 @@ module "http_api" {
       lambda_function_name = module.progress_lambda.function_name
       authorizer_required  = true
     }
+
+
+    ai_recommendation_get = {
+      route_key            = "GET /ai/recommendation"
+      lambda_invoke_arn    = module.ai_lambda.invoke_arn
+      lambda_function_arn  = module.ai_lambda.function_arn
+      lambda_function_name = module.ai_lambda.function_name
+      authorizer_required  = true
+    }
+
+    ai_recommendation_generate = {
+      route_key            = "POST /ai/recommendation/generate"
+      lambda_invoke_arn    = module.ai_lambda.invoke_arn
+      lambda_function_arn  = module.ai_lambda.function_arn
+      lambda_function_name = module.ai_lambda.function_name
+      authorizer_required  = true
+    }
+
+
+    ai_chat_conversations_get = {
+      route_key            = "GET /ai/chat/conversations"
+      lambda_invoke_arn    = module.ai_lambda.invoke_arn
+      lambda_function_arn  = module.ai_lambda.function_arn
+      lambda_function_name = module.ai_lambda.function_name
+      authorizer_required  = true
+    }
+
+    ai_chat_conversations_post = {
+      route_key            = "POST /ai/chat/conversations"
+      lambda_invoke_arn    = module.ai_lambda.invoke_arn
+      lambda_function_arn  = module.ai_lambda.function_arn
+      lambda_function_name = module.ai_lambda.function_name
+      authorizer_required  = true
+    }
+
+    ai_chat_conversation_get = {
+      route_key            = "GET /ai/chat/conversations/{conversationId}"
+      lambda_invoke_arn    = module.ai_lambda.invoke_arn
+      lambda_function_arn  = module.ai_lambda.function_arn
+      lambda_function_name = module.ai_lambda.function_name
+      authorizer_required  = true
+    }
+
+    ai_chat_message_post = {
+      route_key            = "POST /ai/chat/conversations/{conversationId}/messages"
+      lambda_invoke_arn    = module.ai_lambda.invoke_arn
+      lambda_function_arn  = module.ai_lambda.function_arn
+      lambda_function_name = module.ai_lambda.function_name
+      authorizer_required  = true
+    }
   }
 
   cors_allowed_origins = [

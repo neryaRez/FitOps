@@ -105,3 +105,24 @@ module "progress_photos_bucket" {
 
   tags = local.common_tags
 }
+
+module "ai_chat_conversations_table" {
+  source = "../../modules/data/dynamodb-table"
+
+  table_name = "${local.name_prefix}-ai-chat-conversations"
+  hash_key   = "userId"
+  range_key  = "conversationId"
+
+  attributes = [
+    {
+      name = "userId"
+      type = "S"
+    },
+    {
+      name = "conversationId"
+      type = "S"
+    }
+  ]
+
+  tags = local.common_tags
+}
