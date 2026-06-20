@@ -63,6 +63,8 @@ infra/terraform/environments/*/*.auto.tfvars
 
 # Terraform generated backend files
 infra/terraform/environments/*/backend.tf
+infra/terraform/bootstrap/backend.tf
+infra/terraform/bootstrap/terraform.tfvars
 
 # Terraform generated module build artifacts
 infra/terraform/modules/**/build/

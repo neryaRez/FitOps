@@ -69,7 +69,10 @@ exports.handler = async (event) => {
         });
     }
   } catch (error) {
-    console.error("users handler error:", error);
+    console.error("users handler error:", {
+      name: error?.name,
+      message: error?.message,
+    });
 
     return respond(500, {
       message: "Internal server error",

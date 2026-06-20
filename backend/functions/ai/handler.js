@@ -469,7 +469,10 @@ exports.handler = async (event) => {
 
     return json(404, { message: "Route not found", routeKey });
   } catch (err) {
-    console.error("AI handler error:", err);
+    console.error("AI handler error:", {
+      name: err?.name,
+      message: err?.message,
+    });
     return json(500, {
       message: "Internal server error",
       error: err?.message || String(err),

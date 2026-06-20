@@ -1,6 +1,8 @@
 module "user_profiles_table" {
   source = "../../modules/data/dynamodb-table"
 
+  deletion_protection_enabled = true
+
   table_name = "${local.name_prefix}-user-profiles"
   hash_key   = "userId"
 
@@ -16,6 +18,8 @@ module "user_profiles_table" {
 
 module "weight_logs_table" {
   source = "../../modules/data/dynamodb-table"
+
+  deletion_protection_enabled = true
 
   table_name = "${local.name_prefix}-weight-logs"
   hash_key   = "userId"
@@ -38,6 +42,8 @@ module "weight_logs_table" {
 module "measurement_logs_table" {
   source = "../../modules/data/dynamodb-table"
 
+  deletion_protection_enabled = true
+
   table_name = "${local.name_prefix}-measurement-logs"
   hash_key   = "userId"
   range_key  = "date"
@@ -59,6 +65,8 @@ module "measurement_logs_table" {
 module "progress_photos_table" {
   source = "../../modules/data/dynamodb-table"
 
+  deletion_protection_enabled = true
+
   table_name = "${local.name_prefix}-progress-photos"
   hash_key   = "userId"
   range_key  = "photoId"
@@ -79,6 +87,8 @@ module "progress_photos_table" {
 
 module "ai_recommendations_table" {
   source = "../../modules/data/dynamodb-table"
+
+  deletion_protection_enabled = true
 
   table_name = "${local.name_prefix}-ai-recommendations"
   hash_key   = "userId"
@@ -108,6 +118,8 @@ module "progress_photos_bucket" {
 
 module "ai_chat_conversations_table" {
   source = "../../modules/data/dynamodb-table"
+
+  deletion_protection_enabled = true
 
   table_name = "${local.name_prefix}-ai-chat-conversations"
   hash_key   = "userId"
