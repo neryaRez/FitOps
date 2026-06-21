@@ -4,7 +4,7 @@ import { useCurrentUser } from '@/lib/useCurrentUser';
 import { getProfile } from '@/api/userApi';
 import { getWeightLogs, getMeasurementLogs } from '@/api/progressApi';
 import { getRecommendation, requestAnalysis } from '@/api/aiApi';
-import { base44 } from '@/api/base44Client';
+import { listCoachConversations } from '@/api/coachChatApi';
 import { format } from 'date-fns';
 import InsightCard from '@/components/insights/InsightCard';
 import CoachChat from '@/components/insights/CoachChat';
@@ -31,7 +31,7 @@ export default function Insights() {
     try {
       const [rec, convosResult] = await Promise.all([
         getRecommendation(user.email),
-        base44.agents.listConversations({ agent_name: 'fitops_coach' }),
+        listCoachConversations(),
       ]);
 
       setRecommendation(rec);
@@ -47,8 +47,8 @@ export default function Insights() {
               : [];
 
       const mine = convos
-        .filter(c => c?.metadata?.userId === user.email)
-        .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))
+        // AWS backend already returns only the authenticated user's conversations.
+        .sort((a, b) => new Date(b.updated_date || b.created_date || 0) - new Date(a.updated_date || a.created_date || 0))
         .slice(0, 3);
 
       setRecentConvos(mine);
