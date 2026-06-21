@@ -32,11 +32,6 @@ locals {
   height: 44px;
 }
 
-.inputField-customizable:focus {
-  border-color: #00BFFF;
-  box-shadow: 0 0 0 2px rgba(0, 191, 255, 0.20);
-  outline: none;
-}
 
 .submitButton-customizable {
   background: linear-gradient(135deg, #00BFFF, #4F6EF7);
@@ -48,9 +43,6 @@ locals {
   height: 48px;
 }
 
-.submitButton-customizable:hover {
-  background: linear-gradient(135deg, #20C8FF, #6380FF);
-}
 
 .errorMessage-customizable {
   color: #ff8a65;
@@ -70,10 +62,6 @@ locals {
   font-size: 14px;
 }
 
-.forgotPassword-customizable {
-  color: #00BFFF;
-  font-weight: 600;
-}
 
 .textDescription-customizable {
   color: rgba(255, 255, 255, 0.62);
