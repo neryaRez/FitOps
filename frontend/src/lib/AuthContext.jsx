@@ -515,6 +515,14 @@ const logout = () => {
     };
   };
 
+  const loginWithTokens = (tokenResponse) => {
+    saveSession(tokenResponse);
+    const session = getStoredSession();
+    if (!session) throw new Error('Failed to save session after sign-in.');
+    applySessionToState(session);
+    setAuthChecked(true);
+  };
+
   const value = useMemo(
     () => ({
       user,
@@ -534,7 +542,8 @@ const logout = () => {
       checkUserAuth,
       checkAppState,
       getAccessToken,
-      getAuthHeaders
+      getAuthHeaders,
+      loginWithTokens
     }),
     [
       user,

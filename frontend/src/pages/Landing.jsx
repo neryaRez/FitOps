@@ -1,5 +1,5 @@
 import { ArrowRight, CheckCircle, TrendingUp, Camera, Brain, BarChart2 } from 'lucide-react';
-import { useAuth } from '@/lib/AuthContext';
+import { Link } from 'react-router-dom';
 
 const features = [
   {
@@ -44,11 +44,6 @@ const proofs = [
 ];
 
 export default function Landing() {
-  const { navigateToLogin, navigateToSignUp } = useAuth();
-
-  const handleLogin = () => navigateToLogin('/dashboard');
-  const handleSignUp = () => navigateToSignUp('/dashboard');
-
   return (
     <div
       className="min-h-screen font-inter text-white relative overflow-x-hidden"
@@ -84,19 +79,19 @@ export default function Landing() {
             </span>
 
             <div className="flex items-center gap-2 sm:gap-3">
-              <button
-                onClick={handleLogin}
+              <Link
+                to="/sign-in"
                 className="text-sm font-medium text-white/70 hover:text-white transition-colors px-2 sm:px-3 py-2"
               >
                 Sign in
-              </button>
+              </Link>
 
-              <button
-                onClick={handleSignUp}
+              <Link
+                to="/sign-up"
                 className="text-sm font-semibold px-4 sm:px-5 py-2 rounded-lg border border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-[#0F0C29] transition-all"
               >
                 Get started
-              </button>
+              </Link>
             </div>
           </div>
         </header>
@@ -126,20 +121,20 @@ export default function Landing() {
                 coming in Phase 2.
               </p>
 
-              <button
-                onClick={handleSignUp}
-                className="mt-6 sm:mt-8 flex items-center gap-2 px-5 sm:px-6 py-3 rounded-xl font-semibold text-sm text-white transition-all"
+              <Link
+                to="/sign-up"
+                className="mt-6 sm:mt-8 inline-flex items-center gap-2 px-5 sm:px-6 py-3 rounded-xl font-semibold text-sm text-white transition-all"
                 style={{ background: 'linear-gradient(135deg, #00BFFF, #4F6EF7)' }}
               >
                 Start tracking free <ArrowRight className="w-4 h-4" />
-              </button>
+              </Link>
 
-              <button
-                onClick={handleLogin}
-                className="mt-3 text-xs text-white/50 hover:text-white transition-colors"
+              <Link
+                to="/sign-in"
+                className="mt-3 block text-xs text-white/50 hover:text-white transition-colors"
               >
                 Already have an account →
-              </button>
+              </Link>
             </div>
 
             {/* Right: hero image */}
