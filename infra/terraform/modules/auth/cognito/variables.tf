@@ -39,3 +39,8 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+variable "ui_custom_css" {
+  description = "Custom CSS for Cognito Hosted UI."
+  type        = string
+  default     = ""
+}

@@ -1,5 +1,93 @@
 locals {
   frontend_base_url = "https://${module.static_site.cloudfront_domain_name}"
+
+  cognito_hosted_ui_css = <<CSS
+.background-customizable {
+  background: #0F0C29;
+}
+
+.banner-customizable {
+  background-color: rgba(15, 12, 41, 0.92);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+  padding: 22px 0;
+}
+
+.logo-customizable {
+  max-width: 120px;
+  max-height: 48px;
+}
+
+.label-customizable {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.inputField-customizable {
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  color: #ffffff;
+  font-size: 15px;
+  height: 44px;
+}
+
+.inputField-customizable:focus {
+  border-color: #00BFFF;
+  box-shadow: 0 0 0 2px rgba(0, 191, 255, 0.20);
+  outline: none;
+}
+
+.submitButton-customizable {
+  background: linear-gradient(135deg, #00BFFF, #4F6EF7);
+  border: 0;
+  border-radius: 14px;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  height: 48px;
+}
+
+.submitButton-customizable:hover {
+  background: linear-gradient(135deg, #20C8FF, #6380FF);
+}
+
+.errorMessage-customizable {
+  color: #ff8a65;
+  font-size: 13px;
+}
+
+.idpButton-customizable {
+  border-radius: 12px;
+}
+
+.socialButton-customizable {
+  border-radius: 12px;
+}
+
+.redirect-customizable {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 14px;
+}
+
+.redirect-customizable a {
+  color: #00BFFF;
+  font-weight: 700;
+}
+
+.forgotPassword-customizable {
+  color: #00BFFF;
+  font-weight: 600;
+}
+
+.textDescription-customizable {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.legalText-customizable {
+  color: rgba(255, 255, 255, 0.38);
+}
+CSS
 }
 
 module "cognito" {
@@ -19,6 +107,8 @@ module "cognito" {
     local.frontend_base_url,
     "http://localhost:5173"
   ]
+
+  ui_custom_css = local.cognito_hosted_ui_css
 
   tags = local.common_tags
 }

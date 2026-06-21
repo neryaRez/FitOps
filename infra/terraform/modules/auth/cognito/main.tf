@@ -81,3 +81,11 @@ resource "aws_cognito_user_pool_client" "web" {
     refresh_token = "days"
   }
 }
+resource "aws_cognito_user_pool_ui_customization" "web" {
+  count = length(trimspace(var.ui_custom_css)) > 0 ? 1 : 0
+
+  user_pool_id = aws_cognito_user_pool.this.id
+  client_id    = aws_cognito_user_pool_client.web.id
+
+  css = var.ui_custom_css
+}
