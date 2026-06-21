@@ -43,6 +43,7 @@ resource "aws_cloudfront_origin_access_control" "site" {
 }
 
 resource "aws_cloudfront_distribution" "site" {
+  aliases             = var.aliases
   enabled             = true
   comment             = "${var.name} static site"
   default_root_object = "index.html"
@@ -93,7 +94,9 @@ resource "aws_cloudfront_distribution" "site" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+    cloudfront_default_certificate = var.acm_certificate_arn == null
+    acm_certificate_arn            = var.acm_certificate_arn
+    ssl_support_method             = var.acm_certificate_arn == null ? null : "sni-only"
     minimum_protocol_version       = "TLSv1.2_2021"
   }
 

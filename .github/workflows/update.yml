@@ -154,10 +154,22 @@ jobs:
           }
           BACKEND
 
+          ENABLE_CUSTOM_DOMAIN_VALUE="${{ vars.ENABLE_CUSTOM_DOMAIN }}"
+          ROOT_DOMAIN_VALUE="${{ vars.ROOT_DOMAIN }}"
+          FRONTEND_SUBDOMAIN_VALUE="${{ vars.FRONTEND_SUBDOMAIN }}"
+
+          ENABLE_CUSTOM_DOMAIN_VALUE="${ENABLE_CUSTOM_DOMAIN_VALUE:-false}"
+          ROOT_DOMAIN_VALUE="${ROOT_DOMAIN_VALUE:-}"
+          FRONTEND_SUBDOMAIN_VALUE="${FRONTEND_SUBDOMAIN_VALUE:-${{ vars.PROJECT_NAME }}}"
+
           cat > terraform.tfvars <<TFVARS
           project_name = "${{ vars.PROJECT_NAME }}"
           environment  = "${{ vars.ENVIRONMENT }}"
           aws_region   = "${{ vars.AWS_REGION }}"
+
+          enable_custom_domain = ${ENABLE_CUSTOM_DOMAIN_VALUE}
+          root_domain          = "${ROOT_DOMAIN_VALUE}"
+          frontend_subdomain   = "${FRONTEND_SUBDOMAIN_VALUE}"
           TFVARS
 
       - name: Terraform init

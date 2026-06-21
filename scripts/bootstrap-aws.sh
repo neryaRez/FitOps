@@ -6,6 +6,10 @@ ENVIRONMENT="${ENVIRONMENT:-dev}"
 AWS_REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}"
 AUTO_APPROVE="${AUTO_APPROVE:-true}"
 
+ROOT_DOMAIN="${ROOT_DOMAIN:-}"
+FRONTEND_SUBDOMAIN="${FRONTEND_SUBDOMAIN:-}"
+ENABLE_CUSTOM_DOMAIN="${ENABLE_CUSTOM_DOMAIN:-}"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
@@ -65,6 +69,22 @@ detect_existing_github_oidc_provider_arn() {
     --output text 2>/dev/null \
     | tr '\t' '\n' \
     | grep "oidc-provider/token.actions.githubusercontent.com" \
+    | head -n 1 || true
+}
+
+detect_root_domain() {
+  if [[ -n "${ROOT_DOMAIN:-}" ]]; then
+    echo "$ROOT_DOMAIN"
+    return 0
+  fi
+
+  aws route53domains list-domains \
+    --region us-east-1 \
+    --query "Domains[].DomainName" \
+    --output text 2>/dev/null \
+    | tr '\t' '\n' \
+    | grep -E '^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$' \
+    | sort \
     | head -n 1 || true
 }
 
@@ -204,6 +224,10 @@ write_dev_tfvars() {
 project_name = "$PROJECT_NAME"
 environment  = "$ENVIRONMENT"
 aws_region   = "$AWS_REGION"
+
+enable_custom_domain = $ENABLE_CUSTOM_DOMAIN
+root_domain          = "$ROOT_DOMAIN_DETECTED"
+frontend_subdomain   = "$FRONTEND_SUBDOMAIN"
 TFVARS
 
   echo "✅ Wrote dev tfvars: $DEV_TFVARS_FILE"
@@ -265,6 +289,11 @@ print_github_variables_manual_instructions() {
   echo "  TF_DEV_STATE_KEY=$DEV_STATE_KEY"
   echo "  PROJECT_NAME=$PROJECT_NAME"
   echo "  ENVIRONMENT=$ENVIRONMENT"
+  echo "  ENABLE_CUSTOM_DOMAIN=$ENABLE_CUSTOM_DOMAIN"
+  echo "  FRONTEND_SUBDOMAIN=$FRONTEND_SUBDOMAIN"
+  if [[ -n "${ROOT_DOMAIN_DETECTED:-}" ]]; then
+    echo "  ROOT_DOMAIN=$ROOT_DOMAIN_DETECTED"
+  fi
 }
 
 configure_github_variables_if_possible() {
@@ -308,6 +337,20 @@ configure_github_variables_if_possible() {
   gh variable set ENVIRONMENT --repo "$GITHUB_REPOSITORY" --body "$ENVIRONMENT"
   rc_env=$?
 
+  gh variable set ENABLE_CUSTOM_DOMAIN --repo "$GITHUB_REPOSITORY" --body "$ENABLE_CUSTOM_DOMAIN"
+  rc_custom_domain=$?
+
+  gh variable set FRONTEND_SUBDOMAIN --repo "$GITHUB_REPOSITORY" --body "$FRONTEND_SUBDOMAIN"
+  rc_frontend_subdomain=$?
+
+  rc_root_domain=0
+  if [[ -n "${ROOT_DOMAIN_DETECTED:-}" ]]; then
+    gh variable set ROOT_DOMAIN --repo "$GITHUB_REPOSITORY" --body "$ROOT_DOMAIN_DETECTED"
+    rc_root_domain=$?
+  else
+    echo "ℹ️ No Route 53 registered domain detected. ROOT_DOMAIN will not be set."
+  fi
+
   set -e
 
   if [[ "$rc_region" -eq 0 \
@@ -316,7 +359,10 @@ configure_github_variables_if_possible() {
     && "$rc_lock" -eq 0 \
     && "$rc_key" -eq 0 \
     && "$rc_project" -eq 0 \
-    && "$rc_env" -eq 0 ]]; then
+    && "$rc_env" -eq 0 \
+    && "$rc_custom_domain" -eq 0 \
+    && "$rc_frontend_subdomain" -eq 0 \
+    && "$rc_root_domain" -eq 0 ]]; then
     echo "✅ Minimal GitHub repository variables configured."
   else
     echo "ℹ️ Could not configure all GitHub variables automatically."
@@ -368,6 +414,15 @@ USER_CLEAN="$(clean_name "${USER:-${USERNAME:-user}}")"
 [[ -n "$PROJECT_CLEAN" ]] || PROJECT_CLEAN="fitops"
 [[ -n "$USER_CLEAN" ]] || USER_CLEAN="user"
 
+ROOT_DOMAIN_DETECTED="$(detect_root_domain)"
+FRONTEND_SUBDOMAIN="${FRONTEND_SUBDOMAIN:-$PROJECT_CLEAN}"
+
+if [[ -n "$ROOT_DOMAIN_DETECTED" ]]; then
+  ENABLE_CUSTOM_DOMAIN="${ENABLE_CUSTOM_DOMAIN:-true}"
+else
+  ENABLE_CUSTOM_DOMAIN="${ENABLE_CUSTOM_DOMAIN:-false}"
+fi
+
 STATE_BUCKET="${PROJECT_CLEAN}-${USER_CLEAN}-tfstate-${ACCOUNT_ID}-${AWS_REGION}"
 LOCK_TABLE="${PROJECT_CLEAN}-${USER_CLEAN}-terraform-locks"
 
@@ -387,6 +442,11 @@ echo "Environment:  $ENVIRONMENT"
 echo "AWS region:   $AWS_REGION"
 echo "AWS account:  $ACCOUNT_ID"
 echo "GitHub repo:  $GITHUB_REPOSITORY"
+echo
+echo "Optional custom domain:"
+echo "  Enabled:           $ENABLE_CUSTOM_DOMAIN"
+echo "  Root domain:       ${ROOT_DOMAIN_DETECTED:-none}"
+echo "  Frontend prefix:   $FRONTEND_SUBDOMAIN"
 echo
 echo "Terraform backend:"
 echo "  S3 bucket:        $STATE_BUCKET"
