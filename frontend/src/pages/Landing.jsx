@@ -1,62 +1,47 @@
-import {
-  ArrowRight,
-  BarChart2,
-  Brain,
-  Camera,
-  CheckCircle,
-  Shield,
-  Sparkles,
-  TrendingUp,
-} from 'lucide-react';
+import { ArrowRight, CheckCircle, TrendingUp, Camera, Brain, BarChart2 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
-
-const BACKGROUND_IMAGE =
-  'https://media.base44.com/images/public/69ea569deb9059b940e51f3e/3053e376d_generated_image.png';
-
-const HERO_IMAGE =
-  'https://media.base44.com/images/public/69ea569deb9059b940e51f3e/cafb45b8e_generated_image.png';
 
 const features = [
   {
     icon: TrendingUp,
-    title: 'Weight tracking',
-    desc: 'Log your weight and understand the long-term trend, not just one noisy number.',
-    color: 'text-cyan-300',
+    title: 'Weight Tracking',
+    desc: 'Log your daily weight and watch your trend line move in the right direction.',
+    iconColor: 'text-cyan-400',
+    borderColor: 'border-cyan-500/40',
+    glowColor: 'shadow-cyan-500/20',
   },
   {
     icon: Camera,
-    title: 'Progress photos',
-    desc: 'Keep private visual progress records next to your body data.',
-    color: 'text-orange-300',
+    title: 'Progress Photos',
+    desc: 'Upload front, side, and back photos to visually document your transformation.',
+    iconColor: 'text-orange-400',
+    borderColor: 'border-orange-500/40',
+    glowColor: 'shadow-orange-500/20',
   },
   {
     icon: BarChart2,
-    title: 'Measurements',
-    desc: 'Track waist, chest, hips, arms and more in a clean dashboard.',
-    color: 'text-violet-300',
+    title: 'Body Measurements',
+    desc: 'Track neck, chest, waist, hips, arms and thighs with precision.',
+    iconColor: 'text-purple-400',
+    borderColor: 'border-purple-500/40',
+    glowColor: 'shadow-purple-500/20',
   },
   {
     icon: Brain,
-    title: 'AI insights',
-    desc: 'Get practical guidance from your own profile and progress data.',
-    color: 'text-emerald-300',
+    title: 'AI Insights',
+    desc: 'Personalised fitness path, meal guidance and workout plans powered by AI.',
+    iconColor: 'text-yellow-400',
+    borderColor: 'border-yellow-500/40',
+    glowColor: 'shadow-yellow-500/20',
   },
 ];
 
 const proofs = [
-  'Private by design',
-  'No frontend secrets',
-  'AWS-native backend',
-  'AI through backend only',
+  'No subscriptions required to start',
+  'Built for long-term body recomposition',
+  'AI-ready architecture — Phase 2 coming',
+  'Privacy-first design',
 ];
-
-function Logo() {
-  return (
-    <span className="text-xl sm:text-2xl font-black tracking-tight">
-      Fit<span className="text-cyan-400">Ops</span>
-    </span>
-  );
-}
 
 export default function Landing() {
   const { navigateToLogin, navigateToSignUp } = useAuth();
@@ -65,155 +50,185 @@ export default function Landing() {
   const handleSignUp = () => navigateToSignUp('/dashboard');
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#07051A] text-white font-inter">
-      {/* Background image preserved */}
+    <div
+      className="min-h-screen font-inter text-white relative overflow-x-hidden"
+      style={{ backgroundColor: '#0F0C29' }}
+    >
+      {/* Fixed background image */}
       <div
         className="fixed inset-0 z-0"
         style={{
-          backgroundImage: `url('${BACKGROUND_IMAGE}')`,
+          backgroundImage:
+            "url('https://media.base44.com/images/public/69ea569deb9059b940e51f3e/3053e376d_generated_image.png')",
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
       />
 
-      <div className="fixed inset-0 z-0 bg-[#07051A]/55" />
-      <div className="fixed inset-0 z-0 bg-[radial-gradient(circle_at_20%_18%,rgba(0,229,255,0.20),transparent_32%),radial-gradient(circle_at_82%_26%,rgba(255,136,55,0.18),transparent_30%),linear-gradient(180deg,rgba(7,5,26,0.22)_0%,rgba(7,5,26,0.82)_100%)]" />
+      {/* Dark overlay */}
+      <div
+        className="fixed inset-0 z-0"
+        style={{ background: 'rgba(15,12,41,0.42)' }}
+      />
 
+      {/* Content */}
       <div className="relative z-10">
-        <header className="sticky top-0 z-30 border-b border-white/10 bg-[#07051A]/78 backdrop-blur-xl">
-          <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-            <Logo />
+        {/* ── Nav ── */}
+        <header
+          className="sticky top-0 z-50 border-b border-white/10 backdrop-blur-md"
+          style={{ background: 'rgba(15,12,41,0.7)' }}
+        >
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+            <span className="font-bold text-lg tracking-tight text-white select-none">
+              Fit<span className="text-cyan-400">Ops</span>
+            </span>
 
-            <nav className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={handleLogin}
-                className="rounded-full px-3 py-2 text-sm font-semibold text-white/70 transition hover:text-white sm:px-4"
+                className="text-sm font-medium text-white/70 hover:text-white transition-colors px-2 sm:px-3 py-2"
               >
                 Sign in
               </button>
 
               <button
                 onClick={handleSignUp}
-                className="rounded-full border border-cyan-400/60 bg-cyan-400/10 px-4 py-2 text-sm font-bold text-cyan-200 shadow-lg shadow-cyan-500/10 transition hover:bg-cyan-400/20 sm:px-5"
+                className="text-sm font-semibold px-4 sm:px-5 py-2 rounded-lg border border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-[#0F0C29] transition-all"
               >
                 Get started
               </button>
-            </nav>
+            </div>
           </div>
         </header>
 
-        <section className="mx-auto grid min-h-[calc(100vh-72px)] max-w-6xl items-center gap-8 px-4 py-10 sm:px-6 sm:py-14 lg:grid-cols-[1.02fr_0.98fr] lg:py-16">
-          <div className="rounded-[2rem] border border-white/12 bg-white/[0.07] p-6 shadow-2xl shadow-cyan-950/30 backdrop-blur-xl sm:p-8 lg:p-10">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.22em] text-cyan-200">
-              <Sparkles className="h-3.5 w-3.5" />
-              Body intelligence platform
-            </div>
+        {/* ── Hero ── */}
+        <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-8 sm:pt-10 lg:pt-12 pb-8">
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_280px] lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_420px] gap-5 lg:gap-8 items-center">
+            {/* Left: text card */}
+            <div
+              className="w-full max-w-[560px] md:max-w-none mx-auto md:mx-0 rounded-2xl p-5 sm:p-6 lg:p-8 border border-white/15"
+              style={{
+                background: 'rgba(255,255,255,0.05)',
+                backdropFilter: 'blur(12px)',
+              }}
+            >
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight">
+                Your body.
+                <br />
+                Your data.
+                <br />
+                <span className="text-orange-400">Your progress.</span>
+              </h1>
 
-            <h1 className="max-w-3xl text-4xl font-black leading-[0.98] tracking-tight text-white sm:text-5xl lg:text-6xl">
-              Your body.
-              <br />
-              Your data.
-              <br />
-              <span className="bg-gradient-to-r from-cyan-300 via-white to-orange-300 bg-clip-text text-transparent">
-                Your progress.
-              </span>
-            </h1>
+              <p className="mt-4 sm:mt-5 text-sm text-white/70 leading-relaxed max-w-sm">
+                Track weight, measurements, and photos in one clean dashboard.
+                Built for real, long-term progress — with AI personalisation
+                coming in Phase 2.
+              </p>
 
-            <p className="mt-6 max-w-2xl text-base leading-8 text-white/70 sm:text-lg">
-              Track weight, measurements and private progress photos in one clean dashboard.
-              FitOps turns consistent body tracking into a focused, data-driven routine.
-            </p>
-
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <button
                 onClick={handleSignUp}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 px-6 py-4 text-base font-extrabold text-white shadow-xl shadow-cyan-500/20 transition hover:scale-[1.015]"
+                className="mt-6 sm:mt-8 flex items-center gap-2 px-5 sm:px-6 py-3 rounded-xl font-semibold text-sm text-white transition-all"
+                style={{ background: 'linear-gradient(135deg, #00BFFF, #4F6EF7)' }}
               >
-                Start tracking free
-                <ArrowRight className="h-5 w-5" />
+                Start tracking free <ArrowRight className="w-4 h-4" />
               </button>
 
               <button
                 onClick={handleLogin}
-                className="inline-flex items-center justify-center rounded-2xl border border-white/12 bg-white/5 px-6 py-4 text-base font-bold text-white/75 transition hover:bg-white/10 hover:text-white"
+                className="mt-3 text-xs text-white/50 hover:text-white transition-colors"
               >
-                I already have an account
+                Already have an account →
               </button>
             </div>
 
-            <div className="mt-8 grid gap-3 sm:grid-cols-2">
-              {proofs.map((proof) => (
-                <div key={proof} className="flex items-center gap-2 text-sm font-medium text-white/67">
-                  <CheckCircle className="h-4 w-4 shrink-0 text-orange-300" />
-                  {proof}
+            {/* Right: hero image */}
+            <div
+              className="w-full max-w-[220px] sm:max-w-[300px] md:max-w-[280px] lg:max-w-[360px] xl:max-w-[420px] mx-auto rounded-2xl overflow-hidden border border-white/15"
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                backdropFilter: 'blur(8px)',
+              }}
+            >
+              <img
+                src="https://media.base44.com/images/public/69ea569deb9059b940e51f3e/cafb45b8e_generated_image.png"
+                alt="FitOps trainer"
+                className="w-full h-auto max-h-[42vh] md:max-h-none object-contain"
+              />
+            </div>
+          </div>
+
+          {/* Trust badges */}
+          <div
+            className="mt-5 sm:mt-6 max-w-[860px] mx-auto rounded-2xl p-4 sm:p-5 border border-white/10"
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              backdropFilter: 'blur(8px)',
+            }}
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {proofs.map((p) => (
+                <div key={p} className="flex items-center gap-2.5 text-sm text-white/80">
+                  <CheckCircle className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                  {p}
                 </div>
               ))}
             </div>
           </div>
-
-          {/* Image preserved, but now responsive */}
-          <div className="relative mx-auto w-full max-w-[520px] lg:max-w-none">
-            <div className="absolute -inset-4 rounded-[2rem] bg-gradient-to-r from-cyan-500/20 via-blue-500/10 to-orange-500/20 blur-2xl" />
-
-            <div className="relative overflow-hidden rounded-[2rem] border border-white/12 bg-white/[0.06] p-4 shadow-2xl shadow-black/40 backdrop-blur-xl sm:p-5">
-              <div className="mb-4 flex items-center justify-between px-1">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-white/38">
-                    FitOps preview
-                  </p>
-                  <h2 className="mt-1 text-xl font-black text-white">Built for real progress</h2>
-                </div>
-
-                <div className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-bold text-emerald-300">
-                  Secure
-                </div>
-              </div>
-
-              <div className="overflow-hidden rounded-[1.55rem] border border-white/10 bg-black/20">
-                <img
-                  src={HERO_IMAGE}
-                  alt="FitOps fitness dashboard illustration"
-                  className="block h-auto w-full object-contain"
-                  loading="eager"
-                />
-              </div>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                {features.map(({ icon: Icon, title, desc, color }) => (
-                  <div
-                    key={title}
-                    className="rounded-2xl border border-white/10 bg-black/20 p-4"
-                  >
-                    <Icon className={`mb-3 h-5 w-5 ${color}`} />
-                    <h3 className="text-sm font-black text-white">{title}</h3>
-                    <p className="mt-2 text-xs leading-5 text-white/52">{desc}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
         </section>
 
-        <section className="mx-auto max-w-6xl px-4 pb-14 sm:px-6">
-          <div className="rounded-[2rem] border border-white/10 bg-white/[0.055] p-6 text-center backdrop-blur-xl sm:p-8">
-            <Shield className="mx-auto mb-4 h-9 w-9 text-cyan-300" />
-            <h2 className="text-2xl font-black text-white sm:text-3xl">
-              Built like a real cloud project, not a toy app.
+        {/* ── Features ── */}
+        <section className="max-w-5xl mx-auto px-4 sm:px-6 py-16">
+          <div className="text-center mb-12">
+            <h2 className="text-2xl sm:text-3xl font-bold text-white">
+              Everything you need to track your body
             </h2>
-            <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-white/58 sm:text-base">
-              React frontend on S3 and CloudFront, authenticated API Gateway routes,
-              Lambda backend, DynamoDB storage and AI through the backend boundary only.
+
+            <p className="mt-3 text-sm text-white/60 max-w-md mx-auto">
+              A focused, distraction-free toolkit built for people serious about
+              body recomposition.
             </p>
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            {features.map(({ icon: Icon, title, desc, iconColor, borderColor, glowColor }) => (
+              <div
+                key={title}
+                className={`rounded-2xl p-6 border ${borderColor} shadow-xl ${glowColor} transition-all hover:scale-[1.02]`}
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  backdropFilter: 'blur(12px)',
+                }}
+              >
+                <div className="mb-4">
+                  <Icon className={`w-8 h-8 ${iconColor}`} />
+                </div>
+
+                <h3 className="font-bold text-white text-base mb-2">{title}</h3>
+
+                <p className="text-sm text-white/60 leading-relaxed">{desc}</p>
+              </div>
+            ))}
+          </div>
         </section>
 
-        <footer className="border-t border-white/10 bg-[#07051A]/75 py-8 backdrop-blur-xl">
-          <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 text-center text-xs text-white/42 sm:flex-row sm:px-6 sm:text-left">
-            <Logo />
-            <span>© {new Date().getFullYear()} FitOps. AWS-native body tracking.</span>
+        {/* ── Footer ── */}
+        <footer
+          className="border-t border-white/10 py-8"
+          style={{ background: 'rgba(15,12,41,0.6)' }}
+        >
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/40">
+            <span className="font-bold text-sm text-white">
+              Fit<span className="text-cyan-400">Ops</span>
+            </span>
+
+            <span>
+              © {new Date().getFullYear()} FitOps. Built for AWS
+              migration-ready architecture.
+            </span>
           </div>
         </footer>
       </div>
-    </main>
+    </div>
   );
 }
