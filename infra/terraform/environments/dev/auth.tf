@@ -70,11 +70,6 @@ locals {
   font-size: 14px;
 }
 
-.redirect-customizable a {
-  color: #00BFFF;
-  font-weight: 700;
-}
-
 .forgotPassword-customizable {
   color: #00BFFF;
   font-weight: 600;
