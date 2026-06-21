@@ -108,7 +108,7 @@ export default function Landing() {
               }}
             >
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight">
-                Your body!
+                Your body.
                 <br />
                 Your data.
                 <br />
