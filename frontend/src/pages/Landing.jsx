@@ -103,7 +103,7 @@ export default function Landing() {
 
         {/* ── Hero ── */}
         <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-8 sm:pt-10 lg:pt-12 pb-8">
-          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_280px] lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_420px] gap-5 lg:gap-8 items-center">
+          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_220px] md:grid-cols-[minmax(0,1fr)_280px] lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_420px] gap-5 lg:gap-8 items-center">
             {/* Left: text card */}
             <div
               className="w-full max-w-[560px] md:max-w-none mx-auto md:mx-0 rounded-2xl p-5 sm:p-6 lg:p-8 border border-white/15"
@@ -144,7 +144,7 @@ export default function Landing() {
 
             {/* Right: hero image */}
             <div
-              className="w-full max-w-[220px] sm:max-w-[300px] md:max-w-[280px] lg:max-w-[360px] xl:max-w-[420px] mx-auto rounded-2xl overflow-hidden border border-white/15"
+              className="w-full max-w-[190px] sm:max-w-[220px] md:max-w-[280px] lg:max-w-[360px] xl:max-w-[420px] mx-auto rounded-2xl overflow-hidden border border-white/15"
               style={{
                 background: 'rgba(255,255,255,0.04)',
                 backdropFilter: 'blur(8px)',
@@ -153,7 +153,7 @@ export default function Landing() {
               <img
                 src="https://media.base44.com/images/public/69ea569deb9059b940e51f3e/cafb45b8e_generated_image.png"
                 alt="FitOps trainer"
-                className="w-full h-auto max-h-[42vh] md:max-h-none object-contain"
+                className="w-full h-auto max-h-[34vh] sm:max-h-[46vh] md:max-h-none object-contain"
               />
             </div>
           </div>
