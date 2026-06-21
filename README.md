@@ -4,9 +4,30 @@ FitOps is an AWS-native, serverless fitness tracking app for long-term body prog
 
 Users can track weight, body measurements, progress photos, and AI coaching insights through a secure cloud backend.
 
+## Live Deployment
+
+Default deployment uses the CloudFront distribution URL.
+
+Optional custom domain deployment:
+
+```txt
+https://fitops.<your-root-domain>
+```
+
+Example:
+
+```txt
+https://fitops.nerya.dev
+```
+
+Custom domain support is optional. A tester or reviewer without a domain can deploy and use the app normally through CloudFront.
+
 ## Highlights
+
 - React/Vite frontend
 - S3 + CloudFront static hosting
+- Optional Route 53 custom domain
+- Optional ACM certificate for HTTPS custom domain
 - Cognito authentication
 - API Gateway HTTP API
 - Serverless Lambda backend
@@ -16,19 +37,37 @@ Users can track weight, body measurements, progress photos, and AI coaching insi
 - Terraform Infrastructure as Code
 - GitHub Actions CI/CD with AWS OIDC
 - No long-running backend servers
+- No static AWS keys in GitHub Secrets
 
 ## Architecture
+
 ```txt
-User → CloudFront → S3 static frontend → API Gateway HTTP API → Lambda functions → DynamoDB / private S3 / Amazon Bedrock
+User
+  ↓
+Route 53 custom domain, optional
+  ↓
+CloudFront
+  ↓
+S3 static React frontend
+  ↓
+API Gateway HTTP API
+  ↓
+Lambda functions
+  ↓
+DynamoDB / private S3 / Amazon Bedrock
 ```
-FitOps uses a serverless architecture. The frontend is a static React app served from S3 through CloudFront. Backend logic runs in Lambda functions behind API Gateway. There are no EC2 servers, no containers, and no always-running backend process.
+
+Without a custom domain, users access the app directly through CloudFront. With a custom domain enabled, Route 53 points the domain to CloudFront and ACM provides the TLS certificate.
 
 Cognito Hosted UI handles authentication. Protected API routes use Cognito JWT authorizers. The frontend never talks directly to DynamoDB, private S3 data, or Bedrock.
 
 ## Main AWS Resources
+
 | Layer | Service |
 |---|---|
 | Frontend | S3 + CloudFront |
+| Optional DNS | Route 53 |
+| Optional HTTPS certificate | ACM |
 | Auth | Cognito User Pool + Hosted UI |
 | API | API Gateway HTTP API |
 | Backend | AWS Lambda |
@@ -39,56 +78,43 @@ Cognito Hosted UI handles authentication. Protected API routes use Cognito JWT a
 | IaC | Terraform |
 
 ## Repository Structure
+
 ```txt
 .
-├── frontend/                  # React/Vite app
-├── backend/functions/         # Lambda function source code
-├── infra/terraform/           # Terraform infrastructure
-├── scripts/                   # Bootstrap and helper scripts
-└── .github/workflows/         # CI/CD pipelines
+├── frontend/
+├── backend/functions/
+├── infra/terraform/
+├── scripts/
+└── .github/workflows/
 ```
 
 ## Prerequisites
-Install AWS CLI v2, Terraform `>= 1.6`, Node.js 22+, npm, and optionally GitHub CLI.
-```bash
-aws --version
-terraform -version
-node -v
-npm -v
-gh --version
-```
 
-## AWS Authentication
-```bash
-aws configure
-# or
-aws sso login
-
-aws sts get-caller-identity
-```
+Install AWS CLI v2, Terraform, Node.js 22+, npm, and optionally GitHub CLI.
 
 ## Bootstrap
-The bootstrap script prepares the deployment foundation for the project.
+
+Authenticate to AWS, then run bootstrap once:
+
 ```bash
+aws sts get-caller-identity
 ./scripts/bootstrap-aws.sh
 ```
-`bootstrap-aws.sh` runs before the normal Terraform environment deployment. It prepares shared bootstrap resources that Terraform and GitHub Actions need in order to work safely.
 
-It creates or configures:
-- S3 bucket for remote Terraform state
-- DynamoDB table for Terraform state locking
-- GitHub Actions OIDC provider or integration
-- IAM role for GitHub Actions deployments
-- GitHub repository variables required by the workflows
+The bootstrap step creates or configures remote Terraform state, state locking, GitHub Actions OIDC, the deployment IAM role, required GitHub repository variables, and optional custom domain variables when a Route 53 domain is detected.
 
-The goal of the bootstrap step is to avoid static AWS keys in GitHub Secrets. GitHub Actions authenticates to AWS using OIDC and assumes a dedicated IAM role.
+The goal is to avoid static AWS keys in GitHub Secrets. GitHub Actions authenticates to AWS using OIDC and assumes a dedicated IAM role.
 
 Optional overrides:
+
 ```bash
 PROJECT_NAME=fitops ENVIRONMENT=dev AWS_REGION=us-east-1 ./scripts/bootstrap-aws.sh
 ```
 
-## Required GitHub Repository Variables
+## GitHub Repository Variables
+
+Required:
+
 ```txt
 AWS_REGION
 AWS_GITHUB_ACTIONS_ROLE_ARN
@@ -99,36 +125,93 @@ PROJECT_NAME
 ENVIRONMENT
 ```
 
-## Deployment Flow
-FitOps is deployed through GitHub Actions.
-```txt
-Push to main → GitHub Actions → AWS OIDC → Terraform when needed → Frontend build → S3 upload → CloudFront invalidation
-```
-There is no local frontend deployment script in the current setup. Local development is for testing and building. Real deployment is handled by CI/CD.
+Optional custom domain variables:
 
-## Manual Full Deployment
-Use GitHub Actions:
+```txt
+ENABLE_CUSTOM_DOMAIN
+ROOT_DOMAIN
+FRONTEND_SUBDOMAIN
+```
+
+Example:
+
+```txt
+ENABLE_CUSTOM_DOMAIN=true
+ROOT_DOMAIN=nerya.dev
+FRONTEND_SUBDOMAIN=fitops
+```
+
+If these variables are missing or disabled, the app runs normally using the CloudFront URL.
+
+## Optional Custom Domain Provisioning
+
+Custom domain provisioning is handled by a dedicated workflow:
+
+```txt
+Actions → Provision Optional Domain → Run workflow
+```
+
+Workflow file:
+
+```txt
+.github/workflows/provision_domain.yml
+```
+
+The workflow authenticates with AWS OIDC, validates the Route 53 hosted zone, runs Terraform, provisions ACM DNS validation, configures the CloudFront alias, creates Route 53 A/AAAA records, updates Cognito callback/logout URLs, updates CORS, rebuilds the frontend with the custom domain URL, uploads to S3, invalidates CloudFront, and runs smoke tests.
+
+If custom domain support is disabled or no root domain is configured, the workflow exits safely without provisioning domain resources.
+
+## Terraform DNS Modules
+
+Custom domain support is implemented through optional Terraform modules:
+
+```txt
+infra/terraform/modules/dns/acm-certificate
+infra/terraform/modules/dns/cloudfront-alias
+```
+
+These modules are controlled by feature flags and do not create resources when custom domain support is disabled.
+
+## Deployment Flow
+
+```txt
+Push to main
+  ↓
+GitHub Actions
+  ↓
+AWS OIDC authentication
+  ↓
+Terraform when needed
+  ↓
+Frontend build
+  ↓
+S3 upload
+  ↓
+CloudFront invalidation
+```
+
+Manual full deployment:
+
 ```txt
 Actions → Build Start → Run workflow
 ```
-`build_start.yml` performs AWS OIDC authentication, Terraform init/validate/plan/apply, frontend build, upload to S3, CloudFront invalidation, and basic smoke tests.
 
-## Automatic Updates
-`update.yml` runs on push to `main`.
+Automatic updates:
+
 ```txt
-frontend/       → build frontend, upload to S3, invalidate CloudFront
-backend/        → Terraform plan/apply for Lambda-related changes
-infra/terraform → Terraform fmt/init/validate/plan/apply
+update.yml runs on push to main
 ```
-Frontend-only changes do not run `terraform apply`.
+
+`update.yml` handles frontend deploys, backend Lambda-related Terraform changes, and infrastructure changes when relevant. Frontend-only changes do not run `terraform apply`.
+
+Custom domain provisioning is intentionally handled by `provision_domain.yml` so domain setup remains optional and explicit.
 
 ## Local Frontend Development
+
 ```bash
 cd frontend
 npm install
-```
-Create `.env.local`:
-```bash
+
 cat > .env.local <<'EOF_ENV'
 VITE_API_BASE_URL=https://your-api-id.execute-api.us-east-1.amazonaws.com
 VITE_COGNITO_REGION=us-east-1
@@ -138,23 +221,19 @@ VITE_COGNITO_HOSTED_UI_BASE_URL=https://your-domain.auth.us-east-1.amazoncognito
 VITE_COGNITO_REDIRECT_URI=http://localhost:5173/auth/callback
 VITE_COGNITO_LOGOUT_URI=http://localhost:5173
 EOF_ENV
-```
-Run locally:
-```bash
+
 npm run dev
 npm run build
 ```
 
 ## Lambda Backend
+
 Backend code lives under `backend/functions/`.
 
-Each function is packaged and deployed as an AWS Lambda function through Terraform.
-
-The application uses Lambda for health checks, user identity, profile operations, weight logs, measurements, progress photo upload flow, AI recommendations, and AI chat conversations.
-
-Lambda functions are invoked by API Gateway routes. They receive authenticated user context from Cognito JWT claims and use that identity when reading or writing user data.
+Each function is packaged and deployed as an AWS Lambda function through Terraform. Lambda functions are invoked by API Gateway routes and receive authenticated user context from Cognito JWT claims.
 
 ## Terraform Commands
+
 ```bash
 terraform -chdir=infra/terraform/environments/dev fmt -recursive ../../
 terraform -chdir=infra/terraform/environments/dev init
@@ -164,63 +243,39 @@ terraform -chdir=infra/terraform/environments/dev apply
 ```
 
 ## Terraform State Lock Troubleshooting
+
 ```bash
 ps aux | grep '[t]erraform'
 terraform -chdir=infra/terraform/environments/dev force-unlock <LOCK_ID>
 ```
+
 Do not force-unlock while another Terraform command is actually running.
 
 ## API Routes
-Public:
-```txt
-GET /health
-```
-Protected by Cognito JWT:
-```txt
-GET  /me
-GET  /profile
-PUT  /profile
-GET  /weight
-POST /weight
-DELETE /weight/{date}
-GET  /measurements
-POST /measurements
-DELETE /measurements/{date}
-GET  /photos
-POST /photos/upload-url
-POST /photos/complete
-DELETE /photos/{photoId}
-GET  /ai/recommendation
-POST /ai/recommendation/generate
-GET  /ai/chat/conversations
-POST /ai/chat/conversations
-GET  /ai/chat/conversations/{conversationId}
-POST /ai/chat/conversations/{conversationId}/messages
-```
+
+Public route: `GET /health`.
+
+Protected routes include `/me`, `/profile`, `/weight`, `/measurements`, `/photos`, `/ai/recommendation`, and `/ai/chat/conversations`. All protected routes require Cognito JWT authentication.
 
 ## Security Model
+
 - No AWS access keys in GitHub Secrets
 - GitHub Actions uses OIDC
 - Frontend contains no backend secrets
-- Frontend does not access DynamoDB directly
-- Frontend does not access Bedrock directly
+- Frontend does not access DynamoDB, private S3 data, or Bedrock directly
 - API Gateway validates Cognito JWTs
 - Lambda derives user identity from JWT claims
 - User data is partitioned by authenticated user ID
 - Progress photos are stored in a private S3 bucket
 - Uploads use backend-controlled signed URLs
 - Terraform state is encrypted in S3 and protected by locking
-
-## Current Environment
-```txt
-environment = dev
-region      = us-east-1
-```
+- Custom domain HTTPS is handled through ACM and CloudFront
+- Route 53 records are managed by Terraform when enabled
 
 ## Migration Note
-FitOps was migrated from a Base44-generated frontend into an AWS-native serverless architecture.
 
-Some visual assets may still reference Base44-hosted image URLs as static design assets only. Base44 is not used as the backend, auth provider, data layer, or AI provider.
+FitOps was migrated from a Base44-generated frontend into an AWS-native serverless architecture. Base44 is not used as the backend, auth provider, data layer, or AI provider.
 
 ## License
+
 Personal portfolio / learning project.
