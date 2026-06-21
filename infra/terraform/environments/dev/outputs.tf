@@ -101,3 +101,28 @@ output "ai_chat_conversations_table_name" {
   description = "DynamoDB table name for AI coach chat conversations."
   value       = module.ai_chat_conversations_table.table_name
 }
+
+output "custom_domain_enabled" {
+  description = "Whether custom frontend domain is enabled."
+  value       = local.custom_domain_enabled
+}
+
+output "custom_frontend_domain" {
+  description = "Custom frontend domain when enabled."
+  value       = local.custom_frontend_domain
+}
+
+output "frontend_base_url" {
+  description = "Primary frontend base URL."
+  value       = local.frontend_base_url
+}
+
+output "custom_frontend_url" {
+  description = "Custom frontend URL when enabled."
+  value       = local.custom_frontend_url
+}
+
+output "frontend_urls" {
+  description = "All allowed frontend URLs."
+  value       = local.frontend_urls
+}

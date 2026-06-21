@@ -3,5 +3,12 @@ module "static_site" {
 
   name          = local.name_prefix
   bucket_prefix = "${local.name_prefix}-static-site"
-  tags          = local.common_tags
+
+  aliases = local.custom_domain_enabled ? [
+    local.custom_frontend_domain
+  ] : []
+
+  acm_certificate_arn = local.custom_domain_enabled ? module.frontend_certificate.certificate_arn : null
+
+  tags = local.common_tags
 }

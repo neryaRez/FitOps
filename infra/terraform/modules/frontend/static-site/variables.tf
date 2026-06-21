@@ -13,3 +13,15 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "aliases" {
+  description = "Optional custom domain aliases for CloudFront."
+  type        = list(string)
+  default     = []
+}
+
+variable "acm_certificate_arn" {
+  description = "Optional ACM certificate ARN for CloudFront custom aliases."
+  type        = string
+  default     = null
+}

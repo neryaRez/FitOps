@@ -278,10 +278,7 @@ module "http_api" {
     }
   }
 
-  cors_allowed_origins = [
-    local.frontend_base_url,
-    "http://localhost:5173"
-  ]
+  cors_allowed_origins = local.frontend_urls
 
   tags = local.common_tags
 }

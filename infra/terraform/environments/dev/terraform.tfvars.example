@@ -1,7 +1,14 @@
 project_name = "fitops"
 environment  = "dev"
 aws_region   = "us-east-1"
-# Optional:
+
+# Optional custom domain.
+# Leave disabled by default.
+# bootstrap-aws.sh can auto-detect a Route 53 registered domain and fill these values.
+enable_custom_domain = false
+root_domain          = ""
+frontend_subdomain   = "fitops"
+
 # Optional Bedrock model override.
 # Default is a lightweight Amazon Nova model suitable for dev.
 # bedrock_model_id = "amazon.nova-lite-v1:0"

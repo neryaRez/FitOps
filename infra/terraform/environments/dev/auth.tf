@@ -1,6 +1,4 @@
 locals {
-  frontend_base_url = "https://${module.static_site.cloudfront_domain_name}"
-
   cognito_hosted_ui_css = <<CSS
 .background-customizable {
   background: #0F0C29;
@@ -82,14 +80,10 @@ module "cognito" {
   aws_region      = var.aws_region
 
   callback_urls = [
-    "${local.frontend_base_url}/auth/callback",
-    "http://localhost:5173/auth/callback"
+    for url in local.frontend_urls : "${url}/auth/callback"
   ]
 
-  logout_urls = [
-    local.frontend_base_url,
-    "http://localhost:5173"
-  ]
+  logout_urls = local.frontend_urls
 
   ui_custom_css = local.cognito_hosted_ui_css
 

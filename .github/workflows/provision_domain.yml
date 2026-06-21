@@ -1,4 +1,4 @@
-name: Build Start
+name: Provision Optional Domain
 
 on:
   workflow_dispatch:
@@ -8,12 +8,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: provision-dev
+  group: fitops-dev-domain
   cancel-in-progress: false
 
 jobs:
-  provision:
-    name: Provision dev infrastructure and deploy frontend
+  provision-domain:
+    name: Provision optional custom domain
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -25,7 +25,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate required GitHub variables
+      - name: Validate required base GitHub variables
         run: |
           set -euo pipefail
 
@@ -36,7 +36,7 @@ jobs:
             local value="$2"
 
             if [[ -z "$value" ]]; then
-              echo "❌ Missing GitHub repository variable: $name"
+              echo "❌ Missing required GitHub repository variable: $name"
               missing=1
             else
               echo "✅ $name is configured"
@@ -52,29 +52,90 @@ jobs:
           check_var "ENVIRONMENT" "${{ vars.ENVIRONMENT }}"
 
           if [[ "$missing" -ne 0 ]]; then
-            echo "Required GitHub repository variables are missing."
             echo "Run ./scripts/bootstrap-aws.sh first."
             exit 1
           fi
 
+      - name: Resolve optional domain configuration
+        id: domain
+        run: |
+          set -euo pipefail
+
+          ENABLE_CUSTOM_DOMAIN_VALUE="${{ vars.ENABLE_CUSTOM_DOMAIN }}"
+          ROOT_DOMAIN_VALUE="${{ vars.ROOT_DOMAIN }}"
+          FRONTEND_SUBDOMAIN_VALUE="${{ vars.FRONTEND_SUBDOMAIN }}"
+
+          ENABLE_CUSTOM_DOMAIN_VALUE="${ENABLE_CUSTOM_DOMAIN_VALUE:-false}"
+          ROOT_DOMAIN_VALUE="${ROOT_DOMAIN_VALUE:-}"
+          FRONTEND_SUBDOMAIN_VALUE="${FRONTEND_SUBDOMAIN_VALUE:-${{ vars.PROJECT_NAME }}}"
+
+          echo "enable_custom_domain=$ENABLE_CUSTOM_DOMAIN_VALUE" >> "$GITHUB_OUTPUT"
+          echo "root_domain=$ROOT_DOMAIN_VALUE" >> "$GITHUB_OUTPUT"
+          echo "frontend_subdomain=$FRONTEND_SUBDOMAIN_VALUE" >> "$GITHUB_OUTPUT"
+
+          echo "Optional custom domain config:"
+          echo "  ENABLE_CUSTOM_DOMAIN=$ENABLE_CUSTOM_DOMAIN_VALUE"
+          echo "  ROOT_DOMAIN=${ROOT_DOMAIN_VALUE:-none}"
+          echo "  FRONTEND_SUBDOMAIN=$FRONTEND_SUBDOMAIN_VALUE"
+
+          if [[ "$ENABLE_CUSTOM_DOMAIN_VALUE" != "true" || -z "$ROOT_DOMAIN_VALUE" ]]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️ Custom domain is disabled or ROOT_DOMAIN is empty. Nothing to provision."
+          else
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Custom domain provisioning is enabled."
+          fi
+
+      - name: Stop when custom domain is not configured
+        if: steps.domain.outputs.should_run != 'true'
+        run: |
+          echo "No custom domain configured. Exiting successfully."
+          exit 0
+
       - name: Configure AWS credentials through OIDC
+        if: steps.domain.outputs.should_run == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Verify AWS identity
+        if: steps.domain.outputs.should_run == 'true'
         run: |
           set -euo pipefail
           aws sts get-caller-identity
 
+      - name: Verify Route 53 hosted zone exists
+        if: steps.domain.outputs.should_run == 'true'
+        run: |
+          set -euo pipefail
+
+          ROOT_DOMAIN="${{ steps.domain.outputs.root_domain }}"
+
+          HOSTED_ZONE_ID="$(
+            aws route53 list-hosted-zones-by-name \
+              --dns-name "$ROOT_DOMAIN" \
+              --query "HostedZones[?Name=='${ROOT_DOMAIN}.'].Id | [0]" \
+              --output text
+          )"
+
+          if [[ -z "$HOSTED_ZONE_ID" || "$HOSTED_ZONE_ID" == "None" ]]; then
+            echo "❌ Hosted zone not found for $ROOT_DOMAIN"
+            echo "If the account has no Route 53 hosted zone, this optional domain workflow cannot run."
+            exit 1
+          fi
+
+          echo "✅ Hosted zone found: $HOSTED_ZONE_ID"
+
       - name: Setup Terraform
+        if: steps.domain.outputs.should_run == 'true'
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.15.5
           terraform_wrapper: false
 
       - name: Generate Terraform backend and tfvars
+        if: steps.domain.outputs.should_run == 'true'
         working-directory: infra/terraform/environments/dev
         run: |
           set -euo pipefail
@@ -91,45 +152,47 @@ jobs:
           }
           BACKEND
 
-          ENABLE_CUSTOM_DOMAIN_VALUE="${{ vars.ENABLE_CUSTOM_DOMAIN }}"
-          ROOT_DOMAIN_VALUE="${{ vars.ROOT_DOMAIN }}"
-          FRONTEND_SUBDOMAIN_VALUE="${{ vars.FRONTEND_SUBDOMAIN }}"
-
-          ENABLE_CUSTOM_DOMAIN_VALUE="${ENABLE_CUSTOM_DOMAIN_VALUE:-false}"
-          ROOT_DOMAIN_VALUE="${ROOT_DOMAIN_VALUE:-}"
-          FRONTEND_SUBDOMAIN_VALUE="${FRONTEND_SUBDOMAIN_VALUE:-${{ vars.PROJECT_NAME }}}"
-
           cat > terraform.tfvars <<TFVARS
           project_name = "${{ vars.PROJECT_NAME }}"
           environment  = "${{ vars.ENVIRONMENT }}"
           aws_region   = "${{ vars.AWS_REGION }}"
 
-          enable_custom_domain = ${ENABLE_CUSTOM_DOMAIN_VALUE}
-          root_domain          = "${ROOT_DOMAIN_VALUE}"
-          frontend_subdomain   = "${FRONTEND_SUBDOMAIN_VALUE}"
+          enable_custom_domain = true
+          root_domain          = "${{ steps.domain.outputs.root_domain }}"
+          frontend_subdomain   = "${{ steps.domain.outputs.frontend_subdomain }}"
           TFVARS
 
-          echo "✅ Generated backend.tf and terraform.tfvars"
+          echo "✅ Generated backend.tf and terraform.tfvars for optional custom domain"
 
       - name: Terraform fmt check
+        if: steps.domain.outputs.should_run == 'true'
         working-directory: infra/terraform/environments/dev
         run: |
           set -euo pipefail
           terraform fmt -check -recursive ../../
 
       - name: Terraform init
+        if: steps.domain.outputs.should_run == 'true'
         working-directory: infra/terraform/environments/dev
         run: terraform init
 
       - name: Terraform validate
+        if: steps.domain.outputs.should_run == 'true'
         working-directory: infra/terraform/environments/dev
         run: terraform validate
 
-      - name: Terraform apply
+      - name: Terraform plan custom domain
+        if: steps.domain.outputs.should_run == 'true'
         working-directory: infra/terraform/environments/dev
-        run: terraform apply -auto-approve
+        run: terraform plan -out=tfplan
+
+      - name: Terraform apply custom domain
+        if: steps.domain.outputs.should_run == 'true'
+        working-directory: infra/terraform/environments/dev
+        run: terraform apply -auto-approve tfplan
 
       - name: Export Terraform outputs
+        if: steps.domain.outputs.should_run == 'true'
         working-directory: infra/terraform/environments/dev
         run: |
           set -euo pipefail
@@ -139,6 +202,7 @@ jobs:
             echo "FRONTEND_BUCKET=$(terraform output -raw static_site_bucket_name)"
             echo "CLOUDFRONT_DISTRIBUTION_ID=$(terraform output -raw cloudfront_distribution_id)"
             echo "CLOUDFRONT_DOMAIN=$(terraform output -raw cloudfront_domain_name)"
+            echo "FRONTEND_BASE_URL=$(terraform output -raw frontend_base_url)"
 
             echo "VITE_COGNITO_REGION=${{ vars.AWS_REGION }}"
             echo "VITE_COGNITO_USER_POOL_ID=$(terraform output -raw cognito_user_pool_id)"
@@ -148,9 +212,10 @@ jobs:
             echo "VITE_COGNITO_LOGOUT_URI=$(terraform output -raw cognito_logout_url)"
           } >> "$GITHUB_ENV"
 
-          echo "✅ Terraform outputs exported to GitHub environment"
+          echo "✅ Terraform outputs exported"
 
       - name: Setup Node.js
+        if: steps.domain.outputs.should_run == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -158,10 +223,12 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
+        if: steps.domain.outputs.should_run == 'true'
         working-directory: frontend
         run: npm ci
 
-      - name: Build frontend
+      - name: Build frontend with custom domain auth URLs
+        if: steps.domain.outputs.should_run == 'true'
         working-directory: frontend
         env:
           VITE_API_BASE_URL: ${{ env.VITE_API_BASE_URL }}
@@ -173,17 +240,8 @@ jobs:
           VITE_COGNITO_LOGOUT_URI: ${{ env.VITE_COGNITO_LOGOUT_URI }}
         run: npm run build
 
-      - name: Verify frontend build output
-        working-directory: frontend
-        run: |
-          set -euo pipefail
-
-          test -f dist/index.html
-          test -d dist/assets
-
-          echo "✅ Frontend build output verified"
-
-      - name: Upload immutable static assets to S3
+      - name: Upload frontend to S3
+        if: steps.domain.outputs.should_run == 'true'
         working-directory: frontend
         run: |
           set -euo pipefail
@@ -193,16 +251,12 @@ jobs:
             --exclude "index.html" \
             --cache-control "public,max-age=31536000,immutable"
 
-      - name: Upload index.html with no-cache
-        working-directory: frontend
-        run: |
-          set -euo pipefail
-
           aws s3 cp dist/index.html "s3://${FRONTEND_BUCKET}/index.html" \
             --cache-control "no-cache,no-store,must-revalidate" \
             --content-type "text/html"
 
       - name: Invalidate CloudFront cache
+        if: steps.domain.outputs.should_run == 'true'
         run: |
           set -euo pipefail
 
@@ -222,14 +276,15 @@ jobs:
 
           echo "✅ CloudFront invalidation completed"
 
-      - name: Smoke test frontend
+      - name: Smoke test custom frontend URL
+        if: steps.domain.outputs.should_run == 'true'
         run: |
           set -euo pipefail
 
-          URL="https://${CLOUDFRONT_DOMAIN}"
+          URL="$FRONTEND_BASE_URL"
           echo "Testing frontend URL: $URL"
 
-          for i in {1..12}; do
+          for i in {1..18}; do
             STATUS_CODE="$(curl -L -s -o /tmp/frontend.html -w "%{http_code}" "$URL" || true)"
 
             if [[ "$STATUS_CODE" == "200" ]] && grep -qi "<html" /tmp/frontend.html; then
@@ -237,21 +292,21 @@ jobs:
               exit 0
             fi
 
-            echo "Attempt $i/12 failed. Status: $STATUS_CODE. Waiting..."
+            echo "Attempt $i/18 failed. Status: $STATUS_CODE. Waiting..."
             sleep 10
           done
 
-          echo "❌ Frontend smoke test failed."
+          echo "❌ Custom frontend smoke test failed."
           echo "Last status code: $STATUS_CODE"
           head -50 /tmp/frontend.html || true
           exit 1
 
       - name: Smoke test API health
+        if: steps.domain.outputs.should_run == 'true'
         run: |
           set -euo pipefail
 
           echo "Testing API health: ${VITE_API_BASE_URL}/health"
-
           curl -fsS "${VITE_API_BASE_URL}/health"
 
           echo

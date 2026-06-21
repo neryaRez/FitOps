@@ -148,6 +148,10 @@ data "aws_iam_policy_document" "terraform_dev_deploy" {
 
       "s3:*",
       "cloudfront:*",
+      "route53:*",
+      "route53domains:ListDomains",
+      "route53domains:GetDomainDetail",
+      "acm:*",
       "dynamodb:*",
       "lambda:*",
       "logs:*",
