@@ -314,6 +314,38 @@ async function generateChatReply(messages, userContext = {}) {
   return extractTextFromConverse(response) || "I could not generate a response right now.";
 }
 
+
+function shouldReplaceConversationTitle(title) {
+  const normalized = String(title || '').trim().toLowerCase();
+
+  if (!normalized) return true;
+
+  return (
+    normalized === 'coach session' ||
+    normalized === 'new conversation' ||
+    normalized === 'new session' ||
+    /^session #\d+$/i.test(normalized)
+  );
+}
+
+function buildConversationTitleFromMessage(content) {
+  const cleaned = String(content || '')
+    .trim()
+    .replace(/\s+/g, ' ');
+
+  if (!cleaned) {
+    return 'New conversation';
+  }
+
+  const maxLength = 42;
+
+  if (cleaned.length <= maxLength) {
+    return cleaned;
+  }
+
+  return `${cleaned.slice(0, maxLength - 1).trim()}…`;
+}
+
 exports.handler = async (event) => {
   try {
     const userId = getUserId(event);
@@ -454,8 +486,13 @@ exports.handler = async (event) => {
         created_date: nowIso(),
       };
 
+      const updatedTitle = shouldReplaceConversationTitle(existing.title)
+        ? buildConversationTitleFromMessage(content)
+        : existing.title;
+
       const updated = await saveConversation({
         ...existing,
+        title: updatedTitle,
         messages: [...messagesBeforeReply, assistantMessage],
         updated_date: nowIso(),
       });
