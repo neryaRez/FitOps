@@ -29,7 +29,7 @@ const features = [
   {
     icon: Brain,
     title: 'AI Insights',
-    desc: 'Personalised fitness path, meal guidance and workout plans powered by AI.',
+    desc: 'Personalized fitness path, meal guidance and workout plans powered by AI.',
     iconColor: 'text-yellow-400',
     borderColor: 'border-yellow-500/40',
     glowColor: 'shadow-yellow-500/20',
@@ -39,7 +39,7 @@ const features = [
 const proofs = [
   'No subscriptions required to start',
   'Built for long-term body recomposition',
-  'AI-ready architecture — Phase 2 coming',
+  'AI-powered insights and guidance',
   'Privacy-first design',
 ];
 
@@ -117,8 +117,7 @@ export default function Landing() {
 
               <p className="mt-4 sm:mt-5 text-sm text-white/70 leading-relaxed max-w-sm">
                 Track weight, measurements, and photos in one clean dashboard.
-                Built for real, long-term progress — with AI personalisation
-                coming in Phase 2.
+                Built for real, long-term progress — with your AI assistant.
               </p>
 
               <Link
